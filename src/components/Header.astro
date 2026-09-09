@@ -1,0 +1,169 @@
+---
+import Arrow from './Arrow.astro';
+import { contactUrl } from '../content/site';
+---
+
+<header class="site-header">
+  <div class="header-inner wrap">
+    <a href="#" class="brand" aria-label="Qalbi Atelier — inicio">
+      <img src="/brand/logo.svg" width="124" height="70" alt="Qalbi Atelier" />
+    </a>
+    <nav aria-label="Navegación principal" class="desktop-nav">
+      <a href="#creaciones">Las creaciones</a>
+      <a href="#atelier">El atelier</a>
+      <a href="#encargos">Cómo encargar</a>
+    </nav>
+    <a
+      class="header-contact"
+      href={contactUrl()}
+      target="_blank"
+      rel="noreferrer"
+    >
+      Hagamos algo especial <Arrow diagonal />
+    </a>
+    <details class="mobile-menu">
+      <summary aria-label="Abrir menú">
+        <span></span>
+        <span></span>
+      </summary>
+      <nav aria-label="Navegación móvil">
+        <a href="#creaciones">Las creaciones</a>
+        <a href="#atelier">El atelier</a>
+        <a href="#encargos">Cómo encargar</a>
+        <a href="#contacto">
+          Cuéntame tu idea <span aria-hidden="true">↗</span>
+        </a>
+      </nav>
+    </details>
+  </div>
+</header>
+<script>
+  const menu = document.querySelector<HTMLDetailsElement>('.mobile-menu');
+  menu?.querySelectorAll('a').forEach((link) =>
+    link.addEventListener('click', () => {
+      menu.open = false;
+    }),
+  );
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && menu?.open) {
+      menu.open = false;
+      menu.querySelector('summary')?.focus();
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (
+      menu?.open &&
+      event.target instanceof Node &&
+      !menu.contains(event.target)
+    )
+      menu.open = false;
+  });
+</script>
+<style>
+  .site-header {
+    position: relative;
+    z-index: 20;
+  }
+  .header-inner {
+    height: 112px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    position: relative;
+  }
+  .header-inner::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: var(--gutter);
+    right: var(--gutter);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    width: 113px;
+    flex-shrink: 0;
+  }
+  .desktop-nav {
+    display: flex;
+    gap: 2.4rem;
+    font-size: 0.77rem;
+  }
+  .desktop-nav a {
+    padding-block: 1rem;
+  }
+  .desktop-nav a:hover {
+    text-decoration: underline;
+    text-underline-offset: 6px;
+  }
+  .header-contact {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.76rem;
+    border-bottom: 1px solid var(--moss);
+    padding-block: 0.5rem;
+  }
+  .mobile-menu {
+    display: none;
+  }
+  @media (max-width: 800px) {
+    .header-inner {
+      height: 88px;
+    }
+    .brand {
+      width: 96px;
+    }
+    .desktop-nav,
+    .header-contact {
+      display: none;
+    }
+    .mobile-menu {
+      display: block;
+    }
+    .mobile-menu summary {
+      list-style: none;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+    .mobile-menu summary::-webkit-details-marker {
+      display: none;
+    }
+    .mobile-menu summary span {
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--moss);
+      transition: transform 0.2s;
+    }
+    .mobile-menu[open] summary span:first-child {
+      transform: translateY(4px) rotate(45deg);
+    }
+    .mobile-menu[open] summary span:last-child {
+      transform: translateY(-4px) rotate(-45deg);
+    }
+    .mobile-menu nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 88px;
+      background: var(--paper);
+      padding: 1.5rem var(--gutter) 2rem;
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 20px 30px #3d2f2610;
+    }
+    .mobile-menu nav a {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--serif);
+      font-size: 1.6rem;
+    }
+  }
+</style>

@@ -1,0 +1,60 @@
+---
+import '@fontsource/crimson-text/latin-400.css';
+import '@fontsource/crimson-text/latin-400-italic.css';
+import '@fontsource/red-hat-text/latin-400.css';
+import '@fontsource/red-hat-text/latin-500.css';
+import '../styles/global.css';
+import { site } from '../content/site';
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#53573D" />
+    <title>Qalbi Atelier — Tu historia, hecha a mano</title>
+    <meta name="description" content={site.description} />
+    <meta
+      property="og:title"
+      content="Qalbi Atelier — Tu historia, hecha a mano"
+    />
+    <meta property="og:description" content={site.description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_ES" />
+    <link rel="icon" type="image/svg+xml" href="/brand/anthurium.svg" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">
+      Saltar al contenido
+    </a>
+    <slot />
+    <script>
+      const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            if (!preference.matches)
+              entry.target.animate(
+                [
+                  { opacity: 0, translate: '0 18px' },
+                  { opacity: 1, translate: '0 0' },
+                ],
+                { duration: 650, easing: 'cubic-bezier(.2,.7,.2,1)' },
+              );
+            observer.unobserve(entry.target);
+          });
+        },
+        { threshold: 0.12 },
+      );
+      document
+        .querySelectorAll('[data-reveal]')
+        .forEach((element) => observer.observe(element));
+      preference.addEventListener('change', () => {
+        if (preference.matches)
+          document.getAnimations().forEach((animation) => animation.cancel());
+      });
+    </script>
+  </body>
+</html>

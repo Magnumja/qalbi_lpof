@@ -1,0 +1,145 @@
+---
+import { contactUrl, site } from '../content/site';
+import Arrow from './Arrow.astro';
+---
+
+<footer class="site-footer wrap">
+  <div class="footer-main">
+    <a href="#" aria-label="Qalbi Atelier — volver al inicio">
+      <img src="/brand/logo.svg" width="134" height="75" alt="Qalbi Atelier" />
+    </a>
+    <p>
+      Donde lo hecho a mano
+      <br />
+      <em>se encuentra con el corazón.</em>
+    </p>
+    <a class="text-link" href={site.instagram} target="_blank" rel="noreferrer">
+      Sígueme en Instagram <Arrow diagonal />
+    </a>
+  </div>
+  <div class="footer-bottom">
+    <span>© {new Date().getFullYear()} Qalbi Atelier</span>
+    <span>Artesanía & ilustración · Málaga</span>
+    <a href="#" aria-label="Volver al inicio">
+      Volver arriba ↑
+    </a>
+  </div>
+</footer>
+<a
+  class="mobile-contact button"
+  id="mobile-contact"
+  href={contactUrl()}
+  target="_blank"
+  rel="noreferrer"
+  aria-hidden="true"
+  tabindex="-1"
+>
+  ¿Creamos algo especial? <Arrow diagonal />
+</a>
+<script>
+  const sticky = document.getElementById('mobile-contact');
+  const hero = document.getElementById('hero-contact');
+  const final = document.getElementById('contacto');
+  if (sticky && hero && final) {
+    const update = () => {
+      const visible =
+        hero.getBoundingClientRect().bottom < 0 &&
+        final.getBoundingClientRect().top > window.innerHeight;
+      sticky.classList.toggle('is-visible', visible);
+      sticky.setAttribute('aria-hidden', String(!visible));
+      sticky.tabIndex = visible ? 0 : -1;
+    };
+    let scheduled = false;
+    window.addEventListener(
+      'scroll',
+      () => {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => {
+          update();
+          scheduled = false;
+        });
+      },
+      { passive: true },
+    );
+    const observer = new IntersectionObserver(update);
+    observer.observe(hero);
+    observer.observe(final);
+    window.addEventListener('resize', update, { passive: true });
+    update();
+  }
+</script>
+<style>
+  .footer-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-block: 3rem;
+  }
+  .footer-main > p {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    line-height: 1.3;
+  }
+  .footer-main .text-link {
+    font-size: 0.76rem;
+  }
+  .footer-bottom {
+    border-top: 1px solid var(--line);
+    padding-block: 1.2rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.6rem;
+  }
+  .mobile-contact {
+    display: none;
+  }
+  @media (max-width: 700px) {
+    .footer-main {
+      flex-wrap: wrap;
+      gap: 1.75rem 1rem;
+      padding-block: 2rem;
+    }
+    .footer-main > a:first-child {
+      width: 90px;
+    }
+    .footer-main > p {
+      font-size: 1.05rem;
+    }
+    .footer-main > .text-link {
+      font-size: 0.72rem;
+    }
+    .footer-bottom {
+      flex-wrap: wrap;
+      font-size: 0.56rem;
+      padding-bottom: 2rem;
+    }
+    .footer-bottom > span:nth-child(2) {
+      display: none;
+    }
+    .mobile-contact {
+      display: flex;
+      position: fixed;
+      bottom: calc(0.75rem + env(safe-area-inset-bottom));
+      left: 1rem;
+      right: 1rem;
+      z-index: 15;
+      box-shadow: 0 4px 25px #3d2f2630;
+      transform: translateY(160%);
+      visibility: hidden;
+      transition:
+        transform 0.25s,
+        visibility 0.25s;
+      font-size: 0.82rem;
+    }
+    .mobile-contact.is-visible {
+      transform: none;
+      visibility: visible;
+    }
+    :global(body:has(.piece-dialog[open])) .mobile-contact {
+      visibility: hidden;
+    }
+  }
+</style>

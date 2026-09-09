@@ -1,0 +1,258 @@
+:root {
+  --paper: #f5f1e9;
+  --rose: #e8ddd4;
+  --moss: #53573d;
+  --ink: #3d2f26;
+  --clay: #884412;
+  --mauve: #b4869f;
+  --line: rgba(83, 87, 61, 0.23);
+  --serif: 'Crimson Text', Georgia, serif;
+  --sans: 'Red Hat Text', sans-serif;
+  --gutter: clamp(1.25rem, 5vw, 5.5rem);
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 7rem;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--moss);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+::selection {
+  background: var(--moss);
+  color: var(--paper);
+}
+h1,
+h2,
+h3,
+p,
+figure {
+  margin: 0;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  line-height: 1.04;
+}
+h2 {
+  font-size: clamp(2.8rem, 5vw, 4.5rem);
+  letter-spacing: -0.035em;
+}
+h3 {
+  font-size: 1.8rem;
+}
+em {
+  font-weight: 400;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  color: inherit;
+}
+button:not(:disabled),
+summary {
+  cursor: pointer;
+}
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+button {
+  background: none;
+  border: 0;
+}
+svg {
+  display: block;
+}
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--clay);
+  outline-offset: 6px;
+}
+button,
+a,
+summary {
+  touch-action: manipulation;
+}
+.wrap {
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.eyebrow {
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  min-height: 54px;
+  padding: 0.8rem 1.65rem;
+  border: 1px solid var(--moss);
+  border-radius: 3rem;
+  background: var(--moss);
+  color: var(--paper);
+  font-size: 0.84rem;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.button:hover {
+  background: var(--ink);
+  transform: translateY(-2px);
+}
+.button.light {
+  background: var(--paper);
+  border-color: var(--paper);
+  color: var(--moss);
+}
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--moss);
+  padding-bottom: 0.35rem;
+  min-height: 44px;
+}
+.text-link svg {
+  transition: transform 0.2s;
+}
+.text-link:hover svg {
+  transform: translateX(4px);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  left: 1rem;
+  top: 1rem;
+  transform: translateY(-200%);
+  background: var(--paper);
+  padding: 1rem;
+}
+.skip-link:focus {
+  transform: none;
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+}
+.section-heading .eyebrow {
+  margin-bottom: 1rem;
+}
+.section-heading > p {
+  font-size: 0.9rem;
+  max-width: 280px;
+  padding-bottom: 0.4rem;
+}
+.section {
+  padding-block: 6rem;
+}
+@media (max-width: 700px) {
+  .section {
+    padding-block: 4rem;
+  }
+  .section-heading {
+    display: block;
+    margin-bottom: 1.75rem;
+  }
+  .section-heading > p {
+    margin-top: 1rem;
+    max-width: 100%;
+  }
+  .button {
+    min-height: 52px;
+  }
+  .eyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy {
+    animation: hero-entrance 0.8s both;
+  }
+  .hero-art {
+    animation: hero-entrance 1s 0.1s both;
+  }
+  .thread path {
+    stroke-dasharray: 320;
+    stroke-dashoffset: 320;
+    animation: thread-draw 1.8s 0.5s ease forwards;
+  }
+  @keyframes hero-entrance {
+    from {
+      opacity: 0;
+      translate: 0 12px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @keyframes thread-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+}
+
+.story-section .text-link:focus-visible,
+.contact-section .button:focus-visible {
+  outline-color: var(--paper);
+}

@@ -1,0 +1,328 @@
+---
+import { Image } from 'astro:assets';
+import lorrayne from '../assets/photos/lorrayne.jpg';
+import wedding from '../assets/photos/wedding.jpg';
+import Arrow from './Arrow.astro';
+import { contactUrl } from '../content/site';
+---
+
+<section class="story-section" aria-labelledby="story-title">
+  <div class="story-inner wrap">
+    <div class="story-photo" data-reveal>
+      <Image
+        src={wedding}
+        alt="Dos pañuelos bordados con mensajes personales, sobre un tejido de ganchillo"
+        width={480}
+        format="webp"
+        loading="lazy"
+      />
+      <span class="story-caption">Una historia real del atelier</span>
+    </div>
+    <div class="story-copy" data-reveal>
+      <p class="eyebrow">Más que una pieza</p>
+      <h2 id="story-title">
+        Hay palabras
+        <br />
+        que merecen
+        <br />
+        <em>quedarse.</em>
+      </h2>
+      <p>
+        Un pañuelo bordado para una madre, en el día de la boda de su hija. Unas
+        palabras que podrá volver a leer, tocar y guardar.
+      </p>
+      <p>
+        Eso es lo bonito de crear algo para alguien: el significado no está solo
+        en el hilo.
+      </p>
+      <a
+        class="text-link"
+        href={contactUrl('un pañuelo con un mensaje personal')}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Quiero regalar algo así <Arrow diagonal />
+      </a>
+    </div>
+    <img
+      class="story-flower"
+      src="/brand/anthurium.svg"
+      width="200"
+      height="253"
+      alt=""
+      aria-hidden="true"
+    />
+  </div>
+</section>
+<section
+  class="section wrap atelier-section"
+  id="atelier"
+  aria-labelledby="atelier-title"
+>
+  <div class="atelier-copy" data-reveal>
+    <p class="eyebrow">02 / Las manos detrás de Qalbi</p>
+    <h2 id="atelier-title">
+      Hola, soy Lorrayne.
+      <br />
+      <em>
+        Este es mi pequeño
+        <br />
+        universo.
+      </em>
+    </h2>
+    <p>
+      Qalbi nació de un reencuentro conmigo misma en Malta. Su nombre significa
+      «mi corazón», y esa es la parte de mí que pongo en lo que creo.
+    </p>
+    <p>
+      Entre hilos, dibujos y muchas ideas, doy forma a piezas que hablan de
+      personas. De lo que les gusta, de lo que recuerdan, de lo que sienten.
+    </p>
+    <p class="atelier-invitation">
+      Tú traes la historia.
+      <br />
+      <em>Yo pongo las manos y el corazón.</em>
+    </p>
+    <a class="text-link" href={contactUrl()} target="_blank" rel="noreferrer">
+      ¿Creamos algo juntas? <Arrow diagonal />
+    </a>
+  </div>
+  <figure class="portrait" data-reveal>
+    <div class="portrait-frame">
+      <Image
+        src={lorrayne}
+        alt="Lorrayne, creadora de Qalbi Atelier, mostrando sus patitos de ganchillo"
+        width={480}
+        format="webp"
+        loading="lazy"
+      />
+    </div>
+    <figcaption>
+      <span>Lorrayne</span>
+      <span>CREADORA DE QALBI · MÁLAGA</span>
+    </figcaption>
+    <div class="portrait-tag" aria-hidden="true">
+      la persona
+      <br />
+      <em>detrás de cada punto</em>
+    </div>
+  </figure>
+</section>
+<style>
+  .story-section {
+    background: var(--moss);
+    color: var(--paper);
+    position: relative;
+    overflow: hidden;
+  }
+  .story-inner {
+    display: grid;
+    grid-template-columns: 1fr 1.12fr;
+    align-items: center;
+    gap: clamp(3rem, 8vw, 8rem);
+    padding-block: 5rem;
+    position: relative;
+  }
+  .story-photo {
+    position: relative;
+    max-width: 425px;
+    padding: 14px;
+    background: var(--paper);
+    transform: rotate(-4deg);
+  }
+  .story-photo img {
+    width: 100%;
+    height: 430px;
+    object-fit: cover;
+    object-position: center;
+  }
+  .story-caption {
+    display: block;
+    color: var(--moss);
+    font-family: var(--serif);
+    font-style: italic;
+    text-align: center;
+    padding: 0.75rem 0 0.2rem;
+    font-size: 1rem;
+  }
+  .story-copy {
+    position: relative;
+    z-index: 1;
+    max-width: 430px;
+  }
+  .story-copy .eyebrow {
+    margin-bottom: 1.5rem;
+    color: var(--rose);
+  }
+  .story-copy h2 {
+    font-size: clamp(3.2rem, 5.4vw, 5.3rem);
+    line-height: 1;
+    margin-bottom: 1.6rem;
+  }
+  .story-copy > p:not(.eyebrow) {
+    max-width: 355px;
+    font-size: 0.85rem;
+    margin-top: 0.8rem;
+    line-height: 1.85;
+    color: var(--rose);
+  }
+  .story-copy .text-link {
+    border-color: var(--rose);
+    margin-top: 1.5rem;
+    color: var(--paper);
+  }
+  .story-flower {
+    position: absolute;
+    right: -50px;
+    bottom: -70px;
+    width: 260px;
+    opacity: 0.13;
+    filter: brightness(0) invert(1);
+    transform: rotate(20deg);
+  }
+  .atelier-section {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    align-items: center;
+    gap: 5rem;
+    padding-block: 7rem;
+  }
+  .atelier-copy {
+    max-width: 510px;
+  }
+  .atelier-copy .eyebrow {
+    margin-bottom: 1.5rem;
+  }
+  .atelier-copy h2 {
+    font-size: clamp(3rem, 4.5vw, 4.5rem);
+    margin-bottom: 1.75rem;
+  }
+  .atelier-copy > p:not(.eyebrow) {
+    max-width: 400px;
+    font-size: 0.88rem;
+    color: var(--ink);
+    margin-bottom: 1rem;
+    line-height: 1.85;
+  }
+  .atelier-copy .atelier-invitation {
+    font-family: var(--serif);
+    font-size: 1.5rem !important;
+    line-height: 1.3 !important;
+    margin-block: 1.7rem !important;
+    color: var(--moss) !important;
+  }
+  .atelier-copy .text-link {
+    margin-top: 0.5rem;
+  }
+  .portrait {
+    max-width: 440px;
+    width: 100%;
+    position: relative;
+    justify-self: end;
+  }
+  .portrait-frame {
+    border-radius: 48% 48% 3px 3px;
+    overflow: hidden;
+    background: var(--rose);
+    aspect-ratio: 0.85;
+  }
+  .portrait-frame img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    object-position: center 37%;
+  }
+  .portrait figcaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1.2rem;
+  }
+  .portrait figcaption span:first-child {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 2rem;
+  }
+  .portrait figcaption span:last-child {
+    font-size: 0.51rem;
+    letter-spacing: 0.11em;
+  }
+  .portrait-tag {
+    position: absolute;
+    left: -35px;
+    bottom: 85px;
+    background: var(--rose);
+    border: 1px solid var(--mauve);
+    box-shadow: 0 0 0 5px var(--rose);
+    padding: 0.75rem 1rem;
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    line-height: 1.2;
+    transform: rotate(-7deg);
+  }
+  @media (max-width: 700px) {
+    .story-inner {
+      grid-template-columns: 1fr;
+      padding-block: 3.5rem;
+      gap: 2.5rem;
+    }
+    .story-photo {
+      max-width: 280px;
+      justify-self: center;
+      padding: 10px;
+    }
+    .story-photo img {
+      height: 275px;
+    }
+    .story-caption {
+      font-size: 0.85rem;
+    }
+    .story-copy {
+      max-width: 100%;
+    }
+    .story-copy h2 {
+      font-size: 3.2rem;
+    }
+    .story-copy h2 br:nth-of-type(1) {
+      display: none;
+    }
+    .story-copy h2 br:nth-of-type(1)::after {
+      content: ' ';
+    }
+    .story-copy > p:not(.eyebrow) {
+      font-size: 0.95rem;
+      max-width: 100%;
+    }
+    .story-flower {
+      width: 175px;
+    }
+    .atelier-section {
+      grid-template-columns: 1fr;
+      gap: 2.25rem;
+      padding-block: 4rem;
+    }
+    .atelier-copy h2 {
+      font-size: 3rem;
+    }
+    .atelier-copy > p:not(.eyebrow) {
+      max-width: 100%;
+      font-size: 0.95rem;
+    }
+    .portrait {
+      max-width: 320px;
+      justify-self: center;
+    }
+    .portrait-frame {
+      aspect-ratio: 0.95;
+    }
+    .portrait-tag {
+      left: -6px;
+      bottom: 75px;
+      font-size: 0.94rem;
+    }
+    .portrait figcaption span:last-child {
+      font-size: 0.46rem;
+    }
+  }
+</style>
