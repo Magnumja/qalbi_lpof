@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { contactUrl } from '../content/site';
-import type { GalleryPiece } from '../content/pieces';
+import type { GalleryPiece } from '../content/types';
 import '../styles/gallery.css';
+import { observeReveal } from '../lib/reveal';
 
 export default function CreationGallery({
   pieces,
@@ -33,51 +34,25 @@ export default function CreationGallery({
     }
   }, [selected]);
 
-  // Revela cada card uma vez ao entrar na tela; trocar o filtro inicia uma nova sequência.
+  // O helper devolve a limpeza que o React executa antes de trocar o filtro.
   useEffect(() => {
-    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (motion.matches) return;
-
-    const animations: Animation[] = [];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries
-          .filter((entry) => entry.isIntersecting)
-          .forEach((entry, index) => {
-            if (!motion.matches) {
-              animations.push(
-                entry.target.animate(
-                  [
-                    { opacity: 0, transform: 'translateY(14px)' },
-                    { opacity: 1, transform: 'translateY(0)' },
-                  ],
-                  {
-                    duration: 480,
-                    delay: index * 45,
-                    easing: 'ease-out',
-                    fill: 'backwards',
-                  },
-                ),
-              );
-            }
-            observer.unobserve(entry.target);
-          });
-      },
-      { threshold: 0.12 },
+    return observeReveal(
+      grid.current?.querySelectorAll('.creation-card') ?? [],
+      (card, index) => [
+        card.animate(
+          [
+            { opacity: 0, transform: 'translateY(14px)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ],
+          {
+            duration: 480,
+            delay: index * 45,
+            easing: 'ease-out',
+            fill: 'backwards',
+          },
+        ),
+      ],
     );
-
-    grid.current
-      ?.querySelectorAll('.creation-card')
-      .forEach((card) => observer.observe(card));
-    const cancelMotion = () => {
-      if (motion.matches) animations.forEach((animation) => animation.cancel());
-    };
-    motion.addEventListener('change', cancelMotion);
-    return () => {
-      observer.disconnect();
-      animations.forEach((animation) => animation.cancel());
-      motion.removeEventListener('change', cancelMotion);
-    };
   }, [category]);
 
   function close() {

@@ -2,25 +2,23 @@
 import AnimatedText from './AnimatedText.astro';
 import { getImage } from 'astro:assets';
 import { pieces } from '../content/pieces';
+import type { GalleryPiece } from '../content/types';
 import CreationGallery from './CreationGallery';
 // O Astro cria versões leves das fotos; você cadastra apenas a imagem original.
-const images = await Promise.all(
-  pieces.map(async (piece) => {
+const images: GalleryPiece[] = await Promise.all(
+  pieces.map(async ({ image, ...piece }) => {
     const widths = [240, 480];
     const variants = await Promise.all(
-      widths.map((width) =>
-        getImage({ src: piece.image, width, format: 'webp' }),
-      ),
+      widths.map((width) => getImage({ src: image, width, format: 'webp' })),
     );
     return {
       ...piece,
-      image: undefined,
       src: variants[1].src,
       srcSet: variants
         .map((image, i) => `${image.src} ${widths[i]}w`)
         .join(', '),
-      width: piece.image.width,
-      height: piece.image.height,
+      width: image.width,
+      height: image.height,
     };
   }),
 );
