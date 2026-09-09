@@ -1,3 +1,5 @@
+// Para adicionar uma criação: importe a foto e acrescente um objeto nesta lista.
+// Passo a passo completo: comoadicionarfotos.md, na raiz do projeto.
 import embroidery from '../assets/photos/embroidery.jpg';
 import wedding from '../assets/photos/wedding.jpg';
 import panda from '../assets/photos/panda.jpg';
@@ -5,6 +7,7 @@ import illustration from '../assets/photos/illustration.jpg';
 import bear from '../assets/photos/bear.jpg';
 import lorrayne from '../assets/photos/lorrayne.jpg';
 
+// A ordem abaixo define a ordem dos cards. Cada id precisa ser único.
 export const pieces = [
   {
     id: 'palabras',

@@ -51,10 +51,11 @@
   display: block;
   position: relative;
   width: 100%;
-  aspect-ratio: 0.86;
+  aspect-ratio: 1;
   overflow: hidden;
   background: var(--rose);
-  border-radius: 3px;
+  /* Mesmo recorte para todas as peças, em qualquer filtro ou tamanho de tela. */
+  border-radius: 4px 30% 4px 4px;
 }
 .piece-image img {
   width: 100%;
@@ -62,14 +63,16 @@
   object-fit: cover;
   transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.shape-0 .piece-image {
-  border-radius: 44% 44% 3px 3px;
+@media (hover: hover) and (pointer: fine) {
+  .piece-image:hover img {
+    transform: scale(1.035);
+  }
 }
-.shape-2 .piece-image {
-  border-radius: 3px 90px 3px 3px;
+.piece-image:focus-visible img {
+  transform: scale(1.02);
 }
-.piece-image:hover img {
-  transform: scale(1.035);
+.piece-image:active img {
+  transform: scale(0.985);
 }
 .piece-tag {
   position: absolute;
@@ -129,8 +132,16 @@
   flex-shrink: 0;
   transition: background 0.2s;
 }
-.piece-info > a:hover {
+.piece-info > a:hover,
+.piece-info > a:focus-visible {
   background: var(--rose);
+}
+.piece-info > a span {
+  transition: transform 0.25s ease;
+}
+.piece-info > a:hover span,
+.piece-info > a:focus-visible span {
+  transform: translate(2px, -2px);
 }
 .gallery-footnote {
   margin-top: 2.5rem;
@@ -256,9 +267,6 @@ body:has(.piece-dialog[open]) {
   .view-piece {
     display: none;
   }
-  .shape-2 .piece-image {
-    border-top-right-radius: 55px;
-  }
   .gallery-footnote {
     font-size: 0.69rem;
     text-align: left;
@@ -279,5 +287,18 @@ body:has(.piece-dialog[open]) {
   }
   .dialog-copy .button {
     width: 100%;
+  }
+}
+
+/* Sem deslocamento ou zoom quando a pessoa prefere movimento reduzido. */
+@media (prefers-reduced-motion: reduce) {
+  .piece-image img,
+  .piece-info > a span,
+  .view-piece {
+    transition: none;
+    transform: none !important;
+  }
+  .piece-dialog[open] {
+    animation: none;
   }
 }

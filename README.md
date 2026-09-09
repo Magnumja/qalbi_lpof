@@ -26,6 +26,10 @@ npm run build
 npm run preview -- --port 4322
 ```
 
+## Adicionar fotos e cards
+
+Veja o [passo a passo com exemplo pronto em comoadicionarfotos.md](comoadicionarfotos.md). O cadastro gera os filtros, os detalhes e o botão de WhatsApp da peça automaticamente.
+
 ## Onde alterar
 
 - Contato, Instagram e descrição: `src/content/site.ts`.

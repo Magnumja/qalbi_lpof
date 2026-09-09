@@ -57,3 +57,12 @@ Ao retomar, o servidor de desenvolvimento respondeu 500 após reinícios de conf
 3. Confirmar operação de entrega, prazos e preços caso sejam exibidos no futuro.
 4. Definir domínio e completar canonical, sitemap, imagem social e informações legais da operação.
 5. Validar a página em um telefone real e realizar medições de desempenho na hospedagem escolhida.
+
+## Ajuste da galeria — 9 de setembro de 2026
+
+- Todos os cards usam proporção 1:1 e canto superior direito de 30%, independentemente do filtro.
+- Conferência no navegador: seis recortes de aproximadamente 365 × 365 px em três colunas no desktop; seis recortes de aproximadamente 168 × 168 px em duas colunas no iframe de 390 px. Nenhum transbordamento horizontal nesse iframe.
+- Filtro Ganchillo mostrou três peças. Detalhes do panda abriram por teclado, o link continha o título correto e Escape fechou a janela. Retorno ao filtro Todas conferido.
+- Entrada por IntersectionObserver e Web Animations API com cancelamento ao trocar o filtro ou ativar movimento reduzido; zoom e setas com alternativa CSS sem movimento. Preferência de movimento reduzido revisada no código, sem teste de configuração do sistema nesta rodada.
+- `npm run check`, `npm run build` e `npm run format:check` passaram. Página temporária de revisão removida da compilação.
+- Guia de cadastro em `comoadicionarfotos.md`, com categorias e botões gerados a partir do conteúdo.

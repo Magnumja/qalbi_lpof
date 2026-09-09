@@ -2,6 +2,7 @@
 import { getImage } from 'astro:assets';
 import { pieces } from '../content/pieces';
 import CreationGallery from './CreationGallery';
+// O Astro cria versões leves das fotos; você cadastra apenas a imagem original.
 const images = await Promise.all(
   pieces.map(async (piece) => {
     const widths = [240, 480];

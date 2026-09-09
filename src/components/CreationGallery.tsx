@@ -3,13 +3,17 @@ import { contactUrl } from '../content/site';
 import type { GalleryPiece } from '../content/pieces';
 import '../styles/gallery.css';
 
-const categories = ['Todas', 'Bordado', 'Ganchillo', 'Ilustración'];
-
 export default function CreationGallery({
   pieces,
 }: {
   pieces: GalleryPiece[];
 }) {
+  // Os filtros nascem do cadastro: uma técnica nova ganha seu botão automaticamente.
+  const categories = [
+    'Todas',
+    ...new Set(pieces.map((piece) => piece.category)),
+  ];
+  const grid = useRef<HTMLDivElement>(null);
   const [category, setCategory] = useState('Todas');
   const [selected, setSelected] = useState<GalleryPiece | null>(null);
   const [ready, setReady] = useState(false);
@@ -24,6 +28,53 @@ export default function CreationGallery({
   useEffect(() => {
     if (selected) dialog.current?.showModal();
   }, [selected]);
+
+  // Revela cada card uma vez ao entrar na tela; trocar o filtro inicia uma nova sequência.
+  useEffect(() => {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motion.matches) return;
+
+    const animations: Animation[] = [];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries
+          .filter((entry) => entry.isIntersecting)
+          .forEach((entry, index) => {
+            if (!motion.matches) {
+              animations.push(
+                entry.target.animate(
+                  [
+                    { opacity: 0, transform: 'translateY(14px)' },
+                    { opacity: 1, transform: 'translateY(0)' },
+                  ],
+                  {
+                    duration: 480,
+                    delay: index * 45,
+                    easing: 'ease-out',
+                    fill: 'backwards',
+                  },
+                ),
+              );
+            }
+            observer.unobserve(entry.target);
+          });
+      },
+      { threshold: 0.12 },
+    );
+
+    grid.current
+      ?.querySelectorAll('.creation-card')
+      .forEach((card) => observer.observe(card));
+    const cancelMotion = () => {
+      if (motion.matches) animations.forEach((animation) => animation.cancel());
+    };
+    motion.addEventListener('change', cancelMotion);
+    return () => {
+      observer.disconnect();
+      animations.forEach((animation) => animation.cancel());
+      motion.removeEventListener('change', cancelMotion);
+    };
+  }, [category]);
 
   function close() {
     dialog.current?.close();
@@ -60,12 +111,9 @@ export default function CreationGallery({
         {filtered.length} creaciones
         {category !== 'Todas' ? ` de ${category.toLowerCase()}` : ''}
       </p>
-      <div className="creation-grid">
-        {filtered.map((piece, index) => (
-          <article
-            key={piece.id}
-            className={`creation-card shape-${index % 3}`}
-          >
+      <div className="creation-grid" ref={grid}>
+        {filtered.map((piece) => (
+          <article key={piece.id} className="creation-card">
             <button
               className="piece-image"
               type="button"
@@ -96,6 +144,7 @@ export default function CreationGallery({
                 <h3>{piece.title}</h3>
                 <p>Creación por encargo</p>
               </div>
+              {/* O título cadastrado também preenche a mensagem do WhatsApp. */}
               <a
                 href={contactUrl(piece.title)}
                 target="_blank"
