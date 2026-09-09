@@ -39,6 +39,11 @@ import { contactUrl } from '../content/site';
 </header>
 <script>
   const menu = document.querySelector<HTMLDetailsElement>('.mobile-menu');
+  menu?.addEventListener('toggle', () => {
+    menu
+      .querySelector('summary')
+      ?.setAttribute('aria-label', menu.open ? 'Cerrar menú' : 'Abrir menú');
+  });
   menu?.querySelectorAll('a').forEach((link) =>
     link.addEventListener('click', () => {
       menu.open = false;

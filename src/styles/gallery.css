@@ -142,12 +142,15 @@
 .piece-info > a:focus-visible {
   background: var(--rose);
 }
-.piece-info > a span {
+.piece-info > a .contact-arrow {
   transition: transform 0.25s ease;
 }
-.piece-info > a:hover span,
-.piece-info > a:focus-visible span {
+.piece-info > a:hover .contact-arrow,
+.piece-info > a:focus-visible .contact-arrow {
   transform: translate(2px, -2px);
+}
+.consult-label {
+  display: none;
 }
 .gallery-footnote {
   margin-top: 2.5rem;
@@ -176,10 +179,16 @@
   grid-template-columns: 1fr 1fr;
   min-width: 0;
 }
+.dialog-controls {
+  position: sticky;
+  top: 0.75rem;
+  height: 0;
+  z-index: 2;
+}
 .dialog-close {
   position: absolute;
   z-index: 1;
-  top: 0.75rem;
+  top: 0;
   right: 0.75rem;
   width: 44px;
   height: 44px;
@@ -305,28 +314,41 @@ body:has(.piece-dialog[open]) {
     border-radius: 4px 30% 4px 4px;
   }
   .piece-info {
+    display: block;
     align-items: start;
     margin-top: 0.75rem;
   }
   .piece-info h3 {
     font-size: 1.2rem;
     line-height: 1.08;
+    min-height: 2.16em;
   }
   .piece-info p {
-    font-size: 0.58rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
   .piece-info > a {
-    width: 32px;
-    height: 44px;
+    width: 100%;
+    min-height: 44px;
+    height: auto;
+    margin-top: 0.5rem;
+    padding: 0.35rem 0;
+    display: flex;
+    justify-content: space-between;
     border: 0;
+    border-bottom: 1px solid var(--line);
     border-radius: 0;
-    font-size: 1.3rem;
+    font-size: 1.15rem;
+  }
+  .consult-label {
+    display: inline;
+    font-size: 0.75rem;
   }
   .piece-tag {
     left: 0.6rem;
     bottom: 0.6rem;
     padding: 0.15rem 0.55rem;
-    font-size: 0.56rem;
+    font-size: 0.7rem;
   }
   .view-piece {
     display: none;

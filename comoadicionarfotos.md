@@ -51,7 +51,7 @@ Uma categoria nova cria um filtro automaticamente. Use sempre a mesma grafia: `B
 
 ## 4. Como o botão fica certo?
 
-Não precisa copiar botão nem link. Cada card recebe uma seta para consultar a peça por WhatsApp e a janela de detalhes recebe o botão **“Quiero una pieza así”**.
+Não precisa copiar botão nem link. Cada card recebe um link para consultar a peça por WhatsApp (com o texto “WhatsApp” no celular e uma seta no computador) e a janela de detalhes recebe o botão **“Quiero una pieza así”**.
 
 Ambos usam o `title` para montar uma mensagem como:
 
