@@ -1,4 +1,5 @@
 ---
+import AnimatedText from './AnimatedText.astro';
 import { Image } from 'astro:assets';
 import embroidery from '../assets/photos/embroidery.jpg';
 import Arrow from './Arrow.astro';
@@ -16,7 +17,10 @@ import { contactUrl } from '../content/site';
     <h1 id="hero-title">
       Tu historia,
       <br />
-      hecha <em>a mano.</em>
+      hecha{' '}
+      <em>
+        <AnimatedText text="a mano." />
+      </em>
     </h1>
     <p class="hero-description">
       Para esa persona. Para ese momento.

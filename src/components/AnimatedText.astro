@@ -1,0 +1,34 @@
+---
+interface Props {
+  text: string;
+}
+const { text } = Astro.props;
+const words = text.split(' ');
+---
+
+<!-- O leitor de tela recebe a frase inteira; só a cópia visual é dividida. -->
+<span data-animated-text>
+  <span class="sr-only">{text}</span>
+  <span aria-hidden="true">
+    {words.map((word, index) => (
+      <>
+        <span class="animated-word">
+          {Array.from(word).map((letter) => (
+            <span data-letter>{letter}</span>
+          ))}
+        </span>
+        {index < words.length - 1 ? ' ' : ''}
+      </>
+    ))}
+  </span>
+</span>
+
+<style>
+  .animated-word {
+    display: inline-block;
+    white-space: nowrap;
+  }
+  [data-letter] {
+    display: inline-block;
+  }
+</style>

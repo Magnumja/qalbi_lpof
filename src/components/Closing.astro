@@ -1,4 +1,5 @@
 ---
+import AnimatedText from './AnimatedText.astro';
 import { contactUrl } from '../content/site';
 import Arrow from './Arrow.astro';
 const faqs = [
@@ -68,7 +69,9 @@ const faqs = [
     <h2 id="contact-title">
       Hay alguien que merece
       <br />
-      <em>algo tan suyo.</em>
+      <em>
+        <AnimatedText text="algo tan suyo." />
+      </em>
     </h2>
     <p>
       Cuéntame en quién estás pensando.

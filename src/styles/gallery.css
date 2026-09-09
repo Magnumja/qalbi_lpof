@@ -54,8 +54,14 @@
   aspect-ratio: 1;
   overflow: hidden;
   background: var(--rose);
-  /* Mesmo recorte para todas as peças, em qualquer filtro ou tamanho de tela. */
+  /* No desktop, os cantos externos espelham cada linha de três cards. */
   border-radius: 4px 30% 4px 4px;
+}
+.creation-card:nth-child(3n + 1) .piece-image {
+  border-radius: 30% 4px 4px 4px;
+}
+.creation-card:nth-child(3n + 2) .piece-image {
+  border-radius: 4px;
 }
 .piece-image img {
   width: 100%;
@@ -290,6 +296,13 @@ body:has(.piece-dialog[open]) {
   .creation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.5rem 0.85rem;
+  }
+  /* Com duas colunas, o recorte acompanha a posição após cada filtro. */
+  .creation-card:nth-child(odd) .piece-image {
+    border-radius: 30% 4px 4px 4px;
+  }
+  .creation-card:nth-child(even) .piece-image {
+    border-radius: 4px 30% 4px 4px;
   }
   .piece-info {
     align-items: start;

@@ -8,7 +8,7 @@ Salve a imagem em `src/assets/photos/`. Exemplo: `bolsa-floral.jpg`.
 
 Use nomes simples, sem espaços ou acentos. Prefira a foto original em JPG, PNG ou WebP, com boa iluminação e o objeto centralizado. Não é necessário converter para WebP: o Astro gera as versões leves ao compilar.
 
-O card usa um recorte quadrado com o canto superior direito arredondado. A imagem preenche esse espaço, então partes das bordas podem ficar fora do recorte. Na janela de detalhes, a foto aparece inteira. O arquivo original não é alterado.
+O card usa um recorte quadrado espelhado conforme sua coluna: canto superior esquerdo na esquerda e direito na direita. No computador, o card central tem cantos discretos. A imagem preenche esse espaço, então partes das bordas podem ficar fora do recorte. Na janela de detalhes, a foto aparece inteira. O arquivo original não é alterado.
 
 ## 2. Importe a foto
 
@@ -85,7 +85,7 @@ Atualize a aba do navegador depois. Confira a foto no celular e no computador, o
 - **Trocar só a foto:** substitua o arquivo mantendo o nome, ou importe outro arquivo e atualize `image` no cadastro.
 - **Remover um card:** apague seu objeto completo. Apague também a importação se nenhuma outra peça usar aquela foto.
 - **Alterar textos:** edite `title`, `alt` ou `description`. O botão acompanha o título automaticamente.
-- **Ajustar o recorte de toda a galeria:** em `src/styles/gallery.css`, procure `.piece-image`. `aspect-ratio: 1` deixa quadrado; `border-radius: 4px 30% 4px 4px` arredonda o canto superior direito.
+- **Ajustar o recorte de toda a galeria:** em `src/styles/gallery.css`, procure `.piece-image`. `aspect-ratio: 1` deixa quadrado; As regras com nth-child espelham os cantos por coluna: três colunas no computador e duas no celular.
 
 ## Se algo não aparecer
 
