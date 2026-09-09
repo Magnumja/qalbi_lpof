@@ -51,6 +51,42 @@ import { site } from '../content/site';
       document
         .querySelectorAll('[data-reveal]')
         .forEach((element) => observer.observe(element));
+      // Responde à rolagem nativa: mouse, teclado e toque.
+      // Cada frase anima uma vez; o texto permanece legível sem JavaScript.
+      const textObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            if (!preference.matches) {
+              entry.target
+                .querySelectorAll('[data-letter]')
+                .forEach((letter, index) => {
+                  letter.animate(
+                    [
+                      {
+                        opacity: 0,
+                        transform: 'translateY(0.3em) rotate(4deg)',
+                      },
+                      { opacity: 1, transform: 'translateY(0) rotate(0)' },
+                    ],
+                    {
+                      duration: 650,
+                      delay: Math.min(index * 28, 360),
+                      easing: 'cubic-bezier(.16,1,.3,1)',
+                      fill: 'backwards',
+                    },
+                  );
+                });
+            }
+            textObserver.unobserve(entry.target);
+          });
+        },
+        { threshold: 0.5 },
+      );
+      document
+        .querySelectorAll('[data-animated-text]')
+        .forEach((text) => textObserver.observe(text));
+
       preference.addEventListener('change', () => {
         if (preference.matches)
           document.getAnimations().forEach((animation) => animation.cancel());

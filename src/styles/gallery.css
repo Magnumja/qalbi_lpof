@@ -54,8 +54,14 @@
   aspect-ratio: 1;
   overflow: hidden;
   background: var(--rose);
-  /* Mesmo recorte para todas as peças, em qualquer filtro ou tamanho de tela. */
+  /* No desktop, os cantos externos espelham cada linha de três cards. */
   border-radius: 4px 30% 4px 4px;
+}
+.creation-card:nth-child(3n + 1) .piece-image {
+  border-radius: 30% 4px 4px 4px;
+}
+.creation-card:nth-child(3n + 2) .piece-image {
+  border-radius: 4px;
 }
 .piece-image img {
   width: 100%;
@@ -205,8 +211,31 @@
   margin: 1.25rem 0 1.75rem;
   font-size: 0.73rem !important;
 }
+/* Abertura em camadas: fundo, janela, foto e textos em sequência.
+   Os atrasos são curtos para o botão continuar acessível imediatamente. */
 .piece-dialog[open] {
-  animation: dialog-in 0.25s ease both;
+  animation: dialog-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.piece-dialog[open]::backdrop {
+  animation: dialog-backdrop-in 0.4s ease-out both;
+}
+.piece-dialog[open] .dialog-photo {
+  animation: dialog-photo-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
+}
+.piece-dialog[open] .dialog-copy > * {
+  animation: dialog-copy-in 0.45s ease-out both;
+}
+.piece-dialog[open] .dialog-copy > :nth-child(1) {
+  animation-delay: 0.1s;
+}
+.piece-dialog[open] .dialog-copy > :nth-child(2) {
+  animation-delay: 0.15s;
+}
+.piece-dialog[open] .dialog-copy > :nth-child(3) {
+  animation-delay: 0.2s;
+}
+.piece-dialog[open] .dialog-copy > :nth-child(n + 4) {
+  animation-delay: 0.25s;
 }
 body:has(.piece-dialog[open]) {
   overflow: hidden;
@@ -214,11 +243,39 @@ body:has(.piece-dialog[open]) {
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(30px) scale(0.94);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+@keyframes dialog-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes dialog-photo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes dialog-copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 @media (max-width: 700px) {
@@ -239,6 +296,13 @@ body:has(.piece-dialog[open]) {
   .creation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.5rem 0.85rem;
+  }
+  /* Com duas colunas, o recorte acompanha a posição após cada filtro. */
+  .creation-card:nth-child(odd) .piece-image {
+    border-radius: 30% 4px 4px 4px;
+  }
+  .creation-card:nth-child(even) .piece-image {
+    border-radius: 4px 30% 4px 4px;
   }
   .piece-info {
     align-items: start;
@@ -298,7 +362,10 @@ body:has(.piece-dialog[open]) {
     transition: none;
     transform: none !important;
   }
-  .piece-dialog[open] {
+  .piece-dialog[open],
+  .piece-dialog[open]::backdrop,
+  .piece-dialog[open] .dialog-photo,
+  .piece-dialog[open] .dialog-copy > * {
     animation: none;
   }
 }
