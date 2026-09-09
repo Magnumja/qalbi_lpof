@@ -1,0 +1,235 @@
+---
+import { contactUrl } from '../content/site';
+import Arrow from './Arrow.astro';
+const faqs = [
+  [
+    '¿Puedo encargar algo personalizado?',
+    'Sí. Puedes partir de una creación del atelier o contarme una idea nueva. Hablamos de lo que imaginas y vemos cómo llevarlo al bordado, al ganchillo o a la ilustración.',
+  ],
+  [
+    '¿Necesito tener la idea completamente definida?',
+    'No. Puedes contarme para quién es, qué le gusta o qué momento quieres recordar. A partir de ahí, pensamos juntas qué podría encajar.',
+  ],
+  [
+    '¿Cuál es el precio de una pieza?',
+    'Depende de la técnica, el tamaño y los detalles de la creación. Escríbeme con tu idea para consultar un presupuesto.',
+  ],
+  [
+    '¿Con cuánta antelación debo escribir?',
+    'Cada creación necesita su tiempo. Si tienes una fecha especial, cuéntamela al contactar para consultar la disponibilidad y el plazo de elaboración.',
+  ],
+  [
+    '¿Cómo puedo recibir mi encargo?',
+    'El atelier está en Málaga. Al hablar de tu idea, dime dónde necesitas recibir la pieza para consultar las opciones de entrega.',
+  ],
+];
+---
+
+<section class="faq-section section wrap" aria-labelledby="faq-title">
+  <div class="faq-intro" data-reveal>
+    <p class="eyebrow">Antes del primer punto</p>
+    <h2 id="faq-title">
+      Quizá te estés
+      <br />
+      <em>preguntando...</em>
+    </h2>
+    <p>
+      Y si te queda alguna duda,
+      <br />
+      estoy al otro lado.
+    </p>
+    <a class="text-link" href={contactUrl()} target="_blank" rel="noreferrer">
+      Hablamos <Arrow diagonal />
+    </a>
+  </div>
+  <div class="faq-list">
+    {faqs.map(([question, answer]) => (
+      <details name="questions">
+        <summary>
+          {question}
+          <span aria-hidden="true"></span>
+        </summary>
+        <p>{answer}</p>
+      </details>
+    ))}
+  </div>
+</section>
+<section class="contact-section" id="contacto" aria-labelledby="contact-title">
+  <div class="wrap contact-inner" data-reveal>
+    <img
+      class="contact-flower"
+      src="/brand/anthurium.svg"
+      width="74"
+      height="94"
+      alt=""
+      aria-hidden="true"
+    />
+    <p class="eyebrow">Del atelier a tu mundo</p>
+    <h2 id="contact-title">
+      Hay alguien que merece
+      <br />
+      <em>algo tan suyo.</em>
+    </h2>
+    <p>
+      Cuéntame en quién estás pensando.
+      <br />
+      Hagamos algo que le llegue al corazón.
+    </p>
+    <a
+      class="button light"
+      id="final-contact"
+      href={contactUrl()}
+      target="_blank"
+      rel="noreferrer"
+    >
+      Cuéntame tu idea <Arrow diagonal />
+    </a>
+    <span class="contact-note">Nos encontramos en WhatsApp</span>
+  </div>
+</section>
+<style>
+  .faq-section {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: 5rem;
+    padding-block: 7rem;
+  }
+  .faq-intro .eyebrow {
+    margin-bottom: 1.5rem;
+  }
+  .faq-intro h2 {
+    font-size: clamp(2.7rem, 4vw, 4rem);
+  }
+  .faq-intro > p:not(.eyebrow) {
+    font-size: 0.84rem;
+    margin-block: 1.5rem 1rem;
+    color: var(--ink);
+  }
+  .faq-list {
+    align-self: center;
+    border-top: 1px solid var(--line);
+  }
+  .faq-list details {
+    border-bottom: 1px solid var(--line);
+  }
+  .faq-list summary {
+    padding: 1.4rem 0;
+    font-size: 0.84rem;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  .faq-list summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq-list summary span {
+    position: relative;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+  .faq-list summary span::before,
+  .faq-list summary span::after {
+    content: '';
+    position: absolute;
+    background: var(--moss);
+    top: 7px;
+    left: 0;
+    width: 15px;
+    height: 1px;
+  }
+  .faq-list summary span::after {
+    transform: rotate(90deg);
+    transition: transform 0.2s;
+  }
+  .faq-list details[open] summary span::after {
+    transform: rotate(0deg);
+  }
+  .faq-list details > p {
+    font-size: 0.95rem;
+    color: var(--ink);
+    max-width: 480px;
+    padding: 0 1.5rem 1.5rem 0;
+    line-height: 1.85;
+  }
+  .contact-section {
+    position: relative;
+    background: var(--moss);
+    color: var(--paper);
+    overflow: hidden;
+  }
+  .contact-section::before {
+    content: '';
+    position: absolute;
+    top: -15px;
+    left: -1%;
+    width: 102%;
+    height: 25px;
+    background: var(--paper);
+    border-radius: 0 0 50% 50%;
+  }
+  .contact-inner {
+    text-align: center;
+    padding-block: 4.5rem 5.5rem;
+  }
+  .contact-flower {
+    margin: 0 auto 1.5rem;
+    filter: brightness(0) invert(1);
+    opacity: 0.8;
+  }
+  .contact-inner .eyebrow {
+    color: var(--rose);
+    margin-bottom: 1.5rem;
+  }
+  .contact-inner h2 {
+    font-size: clamp(3rem, 5.5vw, 5.4rem);
+    letter-spacing: -0.035em;
+  }
+  .contact-inner > p:not(.eyebrow) {
+    font-size: 0.86rem;
+    line-height: 1.85;
+    color: var(--rose);
+    margin-top: 1.5rem;
+  }
+  .contact-inner .button {
+    margin-top: 1.75rem;
+  }
+  .contact-note {
+    display: block;
+    font-size: 0.6rem;
+    margin-top: 0.9rem;
+    color: var(--rose);
+  }
+  @media (max-width: 700px) {
+    .faq-section {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      padding-block: 4rem;
+    }
+    .faq-intro h2 {
+      font-size: 2.85rem;
+    }
+    .faq-intro > p:not(.eyebrow) {
+      margin-top: 1.2rem;
+    }
+    .faq-list summary {
+      font-size: 0.95rem;
+      padding-block: 1.2rem;
+    }
+    .contact-inner {
+      padding-block: 3.5rem 4rem;
+    }
+    .contact-inner h2 {
+      font-size: clamp(2.75rem, 10vw, 3.8rem);
+    }
+    .contact-flower {
+      width: 55px;
+      height: 70px;
+    }
+    .contact-inner > p:not(.eyebrow) {
+      font-size: 0.95rem;
+    }
+  }
+</style>
