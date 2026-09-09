@@ -4,7 +4,7 @@ Landing page comercial em espanhol, com identidade original da marca, fotografia
 
 ## Rodar e editar
 
-Requer Node.js 22.12.0 ou superior; validado aqui com Node 22.23.2.
+Use Node.js 22.23.2, registrado em `.nvmrc` e usado também na CI. Com nvm, execute `nvm use` antes de instalar. Os testes usam o suporte nativo do Node a TypeScript.
 
 ```sh
 npm ci
@@ -42,6 +42,15 @@ Veja o [passo a passo com exemplo pronto em comoadicionarfotos.md](comoadicionar
 - Processo de encomenda: `src/components/Process.astro`.
 - Dúvidas e convite final: `src/components/Closing.astro`.
 - Rodapé e contato móvel: `src/components/Footer.astro`.
+
+## Qualidade e manutenção
+
+Execute `npm run validate` antes de entregar uma alteração: formatação, TypeScript, testes e build. `npm run format` aplica a formatação; `npm audit` consulta vulnerabilidades conhecidas. Instale com `npm ci` para respeitar o lockfile.
+
+O workflow `.github/workflows/quality.yml` executa as verificações em pushes e pull requests quando estiver no GitHub. Ele não publica o site. Exigir esse resultado para merge depende de configurar a proteção da branch no GitHub.
+
+- [Mapa da arquitetura e responsabilidades](docs/architecture.md)
+- [Auditoria: achados, correções e limites](docs/audit.md)
 
 ## Arquitetura
 

@@ -22,7 +22,7 @@ import bolsaFloral from '../assets/photos/bolsa-floral.jpg';
 
 ## 3. Cadastre a peça
 
-Dentro de `export const pieces = [`, cole o objeto abaixo antes do fechamento `] as const;`. Mantenha os outros objetos e a vírgula entre eles.
+Dentro de `export const pieces = [`, cole o objeto abaixo antes do fechamento `] as const satisfies readonly Piece[];`. Mantenha os outros objetos e a vírgula entre eles.
 
 ```ts
   {
@@ -92,3 +92,5 @@ Atualize a aba do navegador depois. Confira a foto no celular e no computador, o
 Confira o nome do arquivo, a extensão, a importação e a vírgula entre os objetos. Verifique se o filtro selecionado inclui a técnica da peça nova. Se estiver na porta 4322, compile novamente. Edite os arquivos de `src/`; a pasta `dist/` é gerada automaticamente e suas alterações seriam substituídas.
 
 Para cadastrar peças, não é necessário editar `CreationGallery.tsx`. Esse componente cuida dos filtros, das animações e dos detalhes. `Creations.astro` prepara as versões otimizadas das imagens.
+
+O build agora verifica o cadastro automaticamente: IDs duplicados, campos vazios e a categoria reservada Todas interrompem a compilação com uma mensagem indicando a peça. Antes de entregar uma alteração, rode `npm run validate`.
