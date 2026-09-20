@@ -5,6 +5,14 @@ import '@fontsource/red-hat-text/latin-400.css';
 import '@fontsource/red-hat-text/latin-500.css';
 import '../styles/global.css';
 import { site } from '../content/site';
+interface Props {
+  title?: string;
+  privatePage?: boolean;
+}
+const {
+  title = 'Qalbi Atelier — Tu historia, hecha a mano',
+  privatePage = false,
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -13,7 +21,8 @@ import { site } from '../content/site';
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#53573D" />
-    <title>Qalbi Atelier — Tu historia, hecha a mano</title>
+    <title>{title}</title>
+    {privatePage && <meta name="robots" content="noindex, nofollow" />}
     <meta name="description" content={site.description} />
     <meta
       property="og:title"

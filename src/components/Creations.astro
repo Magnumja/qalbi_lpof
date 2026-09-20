@@ -3,7 +3,7 @@ import AnimatedText from './AnimatedText.astro';
 import { getImage } from 'astro:assets';
 import { pieces } from '../content/pieces';
 import type { GalleryPiece } from '../content/types';
-import CreationGallery from './CreationGallery';
+import PublishedGallery from './home/PublishedGallery';
 // O Astro cria versões leves das fotos; você cadastra apenas a imagem original.
 const images: GalleryPiece[] = await Promise.all(
   pieces.map(async ({ image, ...piece }) => {
@@ -41,5 +41,5 @@ const images: GalleryPiece[] = await Promise.all(
       de tu próxima historia.
     </p>
   </div>
-  <CreationGallery pieces={images} client:visible />
+  <PublishedGallery fallback={images} client:load />
 </section>

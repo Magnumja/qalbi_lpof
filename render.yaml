@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: qalbi-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm run db:migrate && npm start --workspace=@qalbi/server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.2
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SHIPPING_CENTS
+        sync: false
+      - key: SHIPPING_COUNTRIES
+        value: ES
+      # Seed opcional. Preencha email e senha juntos para criar o primeiro admin.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Qalbi Atelier

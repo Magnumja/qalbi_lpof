@@ -1,3 +1,5 @@
+> Registro histórico da auditoria da landing page. A arquitetura comercial posterior está em [architecture.md](architecture.md) e [commerce.md](commerce.md).
+
 # Auditoria de código, arquitetura e infraestrutura
 
 Data: 9 de setembro de 2026. Escopo: código e configuração deste repositório, dependências instaladas, compilação e inspeção local da galeria. O ambiente de produção não está configurado neste projeto e não foi auditado remotamente.

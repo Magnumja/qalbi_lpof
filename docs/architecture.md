@@ -1,63 +1,76 @@
 # Arquitetura e manutenção
 
-Qalbi é uma landing page estática com uma galeria interativa. O objetivo da estrutura é permitir editar conteúdo sem mexer na lógica de interface e manter a operação simples.
-
-## Caminho dos dados
+A apresentação continua estática; as páginas de loja carregam componentes React que conversam com uma API separada. PostgreSQL é a fonte de verdade para clientes, estoque, pedidos e mensagens.
 
 ```mermaid
 flowchart LR
-  A[content/pieces.ts + fotos] --> B[validate-pieces.ts]
-  B --> C[Creations.astro: otimiza imagens]
-  C --> D[CreationGallery.tsx: filtros e detalhes]
-  E[content/site.ts] --> D
-  E --> F[Demais seções Astro]
-  D --> G[Link de WhatsApp]
+  B[Navegador] --> V[Astro + React / Vercel]
+  V --> P[Proxy /api / Vercel]
+  P --> R[Express / Render]
+  R --> N[PostgreSQL / Neon]
+  R --> S[Stripe Checkout]
+  S -->|Webhook assinado| R
 ```
 
-A validação do catálogo e a otimização das imagens acontecem no build. O navegador recebe textos e URLs de imagens, sem metadados de importação do Astro. React é ativado quando a galeria se aproxima da área visível. O telefone de contato é público; não é um segredo.
+O proxy mantém cookies no domínio do site, evitando depender de cookies entre domínios. `BACKEND_URL` é uma variável privada da função Vercel. Segredos Stripe e conexão PostgreSQL existem somente no Render. As páginas administrativas são cascas públicas; todos os dados e operações passam pela autorização da API.
 
-## Onde cada responsabilidade fica
+## Responsabilidades
 
-| Local | Responsabilidade | Quando editar |
-| --- | --- | --- |
-| `src/pages/index.astro` | Ordem das seções | Reorganizar a página |
-| `src/layouts/Base.astro` | HTML, metadados, fontes e ligação dos efeitos da página | Alterar configuração compartilhada |
-| `src/content/site.ts` | Contatos e mensagem de WhatsApp | Trocar número, endereço ou mensagem |
-| `src/content/pieces.ts` | Cadastro das peças | Adicionar fotos e textos |
-| `src/content/types.ts` | Contratos `Piece` e `GalleryPiece` | Acrescentar um campo ao cadastro |
-| `src/content/validate-pieces.ts` | Regras que impedem cadastro inconsistente | Alterar regras do conteúdo |
-| `src/components/Creations.astro` | Transformar originais em imagens leves | Ajustar tamanhos e formatos |
-| `src/components/CreationGallery.tsx` | Estado do filtro, seleção, foco e diálogo | Alterar interação da galeria |
-| `src/components/*.astro` | Seções e seus estilos locais | Alterar uma seção |
-| `src/lib/reveal.ts` | Observação, movimento reduzido e limpeza das animações | Alterar o ciclo de vida dos efeitos |
-| `src/styles/global.css` | Cores, fontes e elementos compartilhados | Alterar o sistema visual |
-| `src/styles/gallery.css` | Cards, recortes responsivos e detalhes | Alterar a galeria |
-| `tests/` | Regressões do conteúdo e dos links | Acrescentar regras verificáveis |
-| `.github/workflows/quality.yml` | Verificações automáticas | Alterar a rotina de integração |
+| Pasta/arquivo | Responsabilidade |
+| --- | --- |
+| `src/content/` | Conteúdo institucional e portfólio; não contém preços da loja |
+| `src/components/*.astro` | Seções institucionais e layout |
+| `CreationGallery.tsx`, `gallery.css` | Galeria, filtros, animações e diálogo |
+| `src/components/shop/ShopApp.tsx` | Sessão e carregamento inicial |
+| `Store.tsx`, `AddressFields.tsx` | Catálogo, seleção, endereço e pedido |
+| `Account.tsx`, `OrderPanel.tsx` | Pedidos, prazos, orçamento e conversa |
+| `AdminProducts.tsx` | Cadastro e publicação de produtos |
+| `api.ts`, `types.ts` | Cliente HTTP e contratos do frontend |
+| `server/src/app.mjs` | Rotas HTTP, validação, autorização e respostas |
+| `schemas.mjs` | Formatos aceitos pela API, definidos com Zod |
+| `auth.mjs` | Senhas, sessões, papel administrativo e limites de requisição |
+| `orders.mjs` | Transações de criação, reservas e histórico |
+| `payments.mjs` | Checkout, confirmação, cancelamento e reconciliação |
+| `maintenance.mjs` | Liberação de reservas sem tentativa de pagamento |
+| `db.mjs`, `migrate.mjs` | Pool, transações e aplicação versionada do SQL |
+| `config.mjs`, `index.mjs` | Ambiente, inicialização, manutenção e encerramento |
+| `server/migrations/` | Estrutura versionada do PostgreSQL |
+| `api/[...path].mjs` | Ponte privada entre Vercel e Render |
+| `render.yaml`, `vercel.json` | Configuração de hospedagem |
 
 ## Decisões
 
-- **Astro + uma ilha React:** a página tem conteúdo estático e uma interação que precisa de estado. Não há necessidade atual de backend, banco de dados, roteador React, estado global ou outro framework.
-- **Estilos perto das seções:** arquivos Astro incluem CSS local. O tamanho de `Hero.astro`, por exemplo, vem principalmente dos estilos responsivos; dividir esse arquivo só para reduzir linhas prejudicaria a localização do código.
-- **Tipos separados do catálogo:** componentes React importam somente o contrato, sem depender do arquivo que carrega as fotos.
-- **Um helper para três usos de animação:** títulos, seções e cards compartilham observação e movimento reduzido. Cada chamada ainda declara seu próprio efeito. O helper cancela apenas as animações que criou.
-- **Diálogo mantido na galeria:** seleção e devolução do foco estão juntas. Extrair o diálogo agora exigiria passar referências e callbacks sem criar reutilização real.
-- **Testes nativos do Node:** as regras de conteúdo e os links não exigem um framework de testes adicional. A inspeção visual no navegador complementa esses testes.
+- **Manter Astro:** preserva o site existente e entrega HTML estático; React cuida das telas com estado. Não precisamos trocar o projeto por outro framework.
+- **SQL explícito + pg:** transações de estoque ficam visíveis e fáceis de auditar. Toda entrada variável usa parâmetros SQL. Não há ORM nem banco embutido.
+- **Valores em centavos:** preço, quantidade e frete são recalculados no backend a partir do catálogo persistido. Pedidos guardam uma cópia do preço e título.
+- **Sessões opacas em cookie:** o navegador não guarda tokens em localStorage. Revogação e mudança de papel têm efeito no servidor.
+- **Checkout hospedado:** dados de cartão vão ao Stripe. A loja não coleta nem armazena número de cartão.
+- **Chat por pedido:** mensagens persistidas, consultadas a cada 10 segundos enquanto a página está visível. Não há servidor WebSocket ou serviço extra.
+- **Portfólio separado da loja:** adicionar foto à galeria não publica um produto com preço fictício.
+- **Um workspace npm:** instalação e lockfile únicos, frontend e backend com comandos separados.
 
-## Rotina de alteração
+## Alterações e evolução
 
-1. Para conteúdo, siga `comoadicionarfotos.md`.
-2. Para uma regra nova, escreva um teste que demonstre o caso válido e o inválido.
-3. Execute `npm run validate` e revise a diferença no Git.
-4. Para interação ou CSS, confira também em largura móvel e desktop, com teclado e movimento reduzido.
-5. Entregue a alteração em um commit focado; evite misturar atualização de dependências e redesign.
+Para alterar regra comercial, acrescente um teste na API com banco `qalbi_test`. Para modificar estrutura depois da publicação, crie `002_descricao.sql`, depois `003_...`; nunca reescreva uma migration aplicada. A execução usa um lock transacional PostgreSQL para impedir duas instâncias de migrar juntas.
 
-## Infraestrutura
+Execute `npm run validate`. Para layout, confira desktop, celular, teclado e preferência por movimento reduzido. A CI valida, mas proteção de branch e publicação dependem da configuração nas contas.
 
-O resultado é a pasta `dist/`, gerada por `npm run build`. Node é necessário para desenvolvimento e compilação, mas não para servir esses arquivos. A hospedagem precisa suportar site estático e HTTPS. Não use `astro dev` ou `astro preview` como servidor de produção.
+O build da Vercel é `dist/`. O Render executa Node com pool de até cinco conexões por instância. Arquivos gravados no disco do Render não são armazenamento durável; fotos ficam em `public/shop/` ou em uma URL HTTPS controlada pelo atelier. Operação e limites estão em [commerce.md](commerce.md); implantação e rollback, em [deployment.md](deployment.md).
 
-A CI instala o lockfile com `npm ci`, usa a versão de `.nvmrc` e executa formatação, tipos, testes, build e auditoria de dependências. As actions estão fixadas por commit, com permissão somente de leitura e sem credenciais persistidas no checkout. A atualização dessas referências deve ser revisada, como qualquer dependência.
+A auditoria anterior em `audit.md` descreve a etapa da landing page, antes da introdução da loja.
 
-Ainda não há provedor de hospedagem ou domínio configurado. Ao defini-los: configurar domínio/canonical/sitemap/imagem social, HTTPS e headers compatíveis com o HTML gerado; validar cache (HTML revalidável e assets versionados de longa duração); configurar proteção de branch e escolher o check `quality`; documentar o rollback para a última publicação aprovada. O mecanismo exato depende do provedor. A CI atual valida, mas não faz deploy.
 
-Referências oficiais consultadas: [publicação Astro](https://docs.astro.build/en/guides/deploy/), [setup-node](https://github.com/actions/setup-node), [checkout](https://github.com/actions/checkout), [TypeScript nativo no Node](https://nodejs.org/api/typescript.html).
+## Conteúdo administrável da home
+
+`server/src/home.mjs` mantém as rotas públicas e administrativas do conteúdo. A migration `002_home_content.sql` cria `home_content` (documento publicado com revisão) e `media` (imagens WebP). A gravação do documento verifica a revisão para impedir sobrescrita entre duas abas. Cards ocultos não entram na resposta pública.
+
+`src/components/home/AdminHome.tsx` organiza seleção, edição e publicação; `PhotoField.tsx` prepara uploads e mostra a prévia. `PublishedGallery.tsx` usa a galeria existente para preservar recortes, animações, filtros, diálogos e botões. `load-home.ts` compartilha a consulta pública entre galeria e fotos principais. A página estática permanece como alternativa sem API/JavaScript; portanto alterações do banco não atualizam o HTML estático para indexadores que não executem JavaScript.
+
+Fotos são reduzidas no navegador e revalidadas/reencodadas com Sharp no servidor, removendo metadados. São até 30 uploads por administrador/hora, entrada JSON de até 1 MB, limite de 16 milhões de pixels no servidor e saída de até 500 KB. As imagens são públicas, imutáveis por ID e cacheáveis. O proxy Vercel preserva bytes; conteúdo editorial e dados de conta não são cacheados. Monitorar o tamanho de `media` no Neon; não há limpeza automática de imagens órfãs nesta versão. Para bibliotecas grandes, migrar arquivos para armazenamento de objetos mantendo os identificadores/URLs.
+
+
+## Identidade e área administrativa
+
+`src/layouts/Admin.astro` e `src/components/admin/AdminApp.tsx` isolam a apresentação administrativa da loja. `/admin/login` usa credenciais de administrador; o formulário de cliente usa email ou telefone como identificador. A API valida o papel no login e novamente no acesso às rotas protegidas. O painel não precisa carregar o catálogo público para autenticar.
+
+`003_customer_phone.sql` adiciona telefone opcional e único. `seed-admin.mjs` cria a primeira conta a partir do ambiente, com lock transacional e sem redefinir senha em cada startup. O comando `admin.mjs` permanece uma ferramenta explícita de manutenção. Nenhuma senha padrão ou credencial administrativa vai no bundle do frontend.

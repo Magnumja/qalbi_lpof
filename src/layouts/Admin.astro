@@ -1,0 +1,35 @@
+---
+import Base from './Base.astro';
+import '../styles/admin.css';
+const { title = 'Administración — Qalbi Atelier' } = Astro.props;
+---
+
+<Base title={title} privatePage>
+  <div class="admin-layout">
+    <aside class="admin-identity">
+      <a
+        href="/admin"
+        class="admin-brand"
+        aria-label="Qalbi — panel administrativo"
+      >
+        Qalbi<span>ATELIER / ADMINISTRACIÓN</span>
+      </a>
+      <p class="admin-motto">
+        Tiempo para crear.
+        <br />
+        <em>Espacio para organizar.</em>
+      </p>
+      <nav aria-label="Administración">
+        <a href="/admin">Central del atelier ↗</a>
+        <a href="/" target="_blank" rel="noreferrer">
+          Ver sitio público ↗
+        </a>
+      </nav>
+      <small>Pedidos · Conversaciones · Contenido</small>
+    </aside>
+    <slot />
+  </div>
+  <noscript>
+    <p>Activa JavaScript para acceder al panel administrativo.</p>
+  </noscript>
+</Base>

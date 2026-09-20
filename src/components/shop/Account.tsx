@@ -1,0 +1,293 @@
+import { useEffect, useState } from 'react';
+import { api, date, money, statusLabel } from './api';
+import type { Order, User } from './types';
+import OrderPanel from './OrderPanel';
+import ContactSettings from './ContactSettings';
+import AdminProducts from './AdminProducts';
+import AdminHome from '../home/AdminHome';
+export default function Account({
+  user,
+  admin = false,
+  paymentEnabled = false,
+}: {
+  user: User;
+  admin?: boolean;
+  paymentEnabled?: boolean;
+}) {
+  const [notice, setNotice] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [editorDirty, setEditorDirty] = useState(false);
+  function switchTab(next: string) {
+    if (
+      (tab === 'home' || tab === 'products') &&
+      editorDirty &&
+      !window.confirm('¿Salir sin guardar los cambios de esta sección?')
+    )
+      return;
+    setEditorDirty(false);
+    setTab(next);
+  }
+  const [orders, setOrders] = useState<Order[]>([]),
+    [selected, setSelected] = useState<string | null>(null),
+    [tab, setTab] = useState('orders'),
+    [error, setError] = useState(''),
+    [page, setPage] = useState(0),
+    [stats, setStats] = useState({
+      requested: 0,
+      awaiting_payment: 0,
+      active: 0,
+      overdue: 0,
+    }),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('order');
+    if (id && /^[a-f0-9-]{36}$/.test(id)) setSelected(id);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    api<{ orders: Order[]; stats?: typeof stats }>(
+      admin ? `/admin/orders?page=${page}` : '/orders',
+    )
+      .then((data) => {
+        if (active) {
+          setOrders(data.orders);
+          if (data.stats) setStats(data.stats);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [admin, page, selected, tab, refresh]);
+  if (admin && user.role !== 'admin')
+    return (
+      <div className="shop-empty">
+        <h1>Tu espacio es por aquí.</h1>
+        <a href="/cuenta" className="button">
+          Ver mis pedidos
+        </a>
+      </div>
+    );
+  if (selected)
+    return (
+      <OrderPanel
+        key={selected}
+        id={selected}
+        admin={admin}
+        paymentEnabled={paymentEnabled}
+        onBack={() => {
+          setSelected(null);
+          window.history.replaceState(null, '', admin ? '/admin' : '/cuenta');
+        }}
+      />
+    );
+  return (
+    <>
+      <header className="shop-heading compact">
+        <p className="eyebrow">{admin ? 'Central del atelier' : 'Mi cuenta'}</p>
+        <h1>
+          {admin ? 'Todo en su sitio.' : `Hola, ${user.name.split(' ')[0]}.`}
+        </h1>
+        <p>
+          {admin
+            ? 'Pedidos, plazos y conversaciones, con tiempo para crear.'
+            : 'Tus piezas, sus historias y una conversación siempre cerca.'}
+        </p>
+      </header>
+      {admin && (
+        <>
+          <div className="admin-stats">
+            <div>
+              <strong>{stats.requested}</strong>
+              <span>Por presupuestar</span>
+            </div>
+            <div>
+              <strong>{stats.awaiting_payment}</strong>
+              <span>Pendientes de pago</span>
+            </div>
+            <div>
+              <strong>{stats.active}</strong>
+              <span>En preparación</span>
+            </div>
+            <div>
+              <strong>{stats.overdue}</strong>
+              <span>Revisar plazo</span>
+            </div>
+          </div>
+          <div className="shop-tabs">
+            <button
+              aria-pressed={tab === 'orders'}
+              onClick={() => switchTab('orders')}
+            >
+              Pedidos y plazos
+            </button>
+            <button
+              aria-pressed={tab === 'products'}
+              onClick={() => switchTab('products')}
+            >
+              Productos
+            </button>
+            <button
+              aria-pressed={tab === 'home'}
+              onClick={() => switchTab('home')}
+            >
+              Página inicial
+            </button>
+          </div>
+        </>
+      )}
+      {error && (
+        <div className="shop-error" role="alert">
+          {error}{' '}
+          <button onClick={() => setRefresh((n) => n + 1)}>
+            Volver a cargar pedidos
+          </button>
+        </div>
+      )}
+      {notice && (
+        <p className="shop-notice" role="status">
+          {notice}
+        </p>
+      )}
+      {tab === 'home' ? (
+        <AdminHome onDirty={setEditorDirty} />
+      ) : tab === 'products' ? (
+        <AdminProducts onDirty={setEditorDirty} />
+      ) : (
+        <>
+          <div className="order-list">
+            {loading ? (
+              <p role="status">Cargando pedidos…</p>
+            ) : orders.length === 0 ? (
+              <div className="shop-empty">
+                <h2>Aquí empiezan nuevas historias.</h2>
+                <p>
+                  {admin
+                    ? 'Los pedidos aparecerán aquí cuando un cliente los cree.'
+                    : 'Todavía no tienes pedidos.'}
+                </p>
+                <a href="/tienda" className="button">
+                  Explorar la tienda ↗
+                </a>
+              </div>
+            ) : (
+              orders.map((o) => (
+                <button
+                  key={o.id}
+                  className="order-row"
+                  onClick={() => {
+                    setSelected(o.id);
+                    window.history.replaceState(
+                      null,
+                      '',
+                      `${admin ? '/admin' : '/cuenta'}?order=${o.id}`,
+                    );
+                  }}
+                >
+                  <div>
+                    <strong>
+                      #{o.number} ·{' '}
+                      {admin
+                        ? o.customer_name
+                        : o.kind === 'custom'
+                          ? 'Tu encargo'
+                          : 'Tu selección'}
+                    </strong>
+                    <small>{date(o.created_at)}</small>
+                  </div>
+                  <span className={`order-badge status-${o.status}`}>
+                    {statusLabel[o.status]}
+                  </span>
+                  <div>
+                    <small>Preparado para</small>
+                    <span>{date(o.due_at)}</span>
+                  </div>
+                  <strong>
+                    {o.total_cents === null
+                      ? 'Por presupuestar'
+                      : money(o.total_cents)}{' '}
+                    ↗
+                  </strong>
+                </button>
+              ))
+            )}
+          </div>
+          {admin && (
+            <div className="shop-pagination">
+              <button disabled={page === 0} onClick={() => setPage(page - 1)}>
+                ← Anterior
+              </button>
+              <span>Página {page + 1}</span>
+              <button
+                disabled={orders.length < 50}
+                onClick={() => setPage(page + 1)}
+              >
+                Siguiente →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      {!admin && (
+        <details className="password-settings">
+          <summary>Cambiar mi contraseña</summary>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const f = new FormData(form);
+              setSavingPassword(true);
+              setNotice('');
+              setError('');
+              try {
+                await api('/auth/password', 'POST', {
+                  current: f.get('current'),
+                  password: f.get('password'),
+                });
+                form.reset();
+                setNotice('Contraseña actualizada.');
+              } catch (err) {
+                setError((err as Error).message);
+              } finally {
+                setSavingPassword(false);
+              }
+            }}
+          >
+            <label>
+              Contraseña actual
+              <input
+                name="current"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              Nueva contraseña
+              <input
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={128}
+                required
+              />
+            </label>
+            <button className="button" disabled={savingPassword}>
+              {savingPassword ? 'Guardando…' : 'Guardar contraseña'}
+            </button>
+          </form>
+        </details>
+      )}
+      {!admin && <ContactSettings user={user} />}
+    </>
+  );
+}

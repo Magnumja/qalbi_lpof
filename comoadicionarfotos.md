@@ -1,5 +1,44 @@
 # Como adicionar fotos e criar cards
 
+## Página inicial: editar direto pelo painel
+
+1. Entre em `/admin` e abra **Página inicial**.
+2. Escolha um card na lista. Altere **nome**, **técnica**, **história e detalhes** e **descrição da foto**.
+3. Em **Subir foto desde tu dispositivo**, escolha uma imagem JPG, PNG ou WebP de até 12 MB. Ela é reduzida automaticamente. Também pode informar uma URL HTTPS ou `/shop/arquivo.jpg`.
+4. Use **↑ Subir / ↓ Bajar** para ordenar. Desmarque **Mostrar en la página inicial** para ocultar sem apagar. **Añadir card** cria um novo card inicialmente oculto; **Eliminar card** remove da seleção quando você publicar.
+5. Abra **Vista previa de los cards** para conferir recortes, textos, filtros e detalhes.
+6. Clique em **Publicar cambios**. Abra ou atualize a home para ver o resultado; não precisa compilar ou fazer deploy.
+
+Na mesma área, **Foto de apertura**, **Historia destacada** e **Retrato del atelier** permitem trocar as três fotos principais e suas descrições de acessibilidade. Os textos das seções institucionais continuam no código; os títulos e descrições dos cards são editáveis pelo painel.
+
+O botão de consulta de cada card acompanha o nome da criação automaticamente. Isso não cria produto nem define preço na loja: são destaques do portfólio.
+
+**Antes de publicar:** mudanças ficam somente na aba aberta. O editor avisa ao sair sem salvar. Use **Recargar / descartar** para voltar ao conteúdo publicado. Se outra aba publicar primeiro, sua publicação é bloqueada para não sobrescrever o trabalho dela; recarregue e refaça a alteração. Até 30 cards.
+
+Fotos enviadas ficam no PostgreSQL/Neon em WebP (até 500 KB por foto após conversão), não no disco do Render. A imagem é enviada ao banco imediatamente, mas só entra na home ao publicar. São arquivos públicos: envie somente fotos destinadas ao site. Excluir um card não apaga o arquivo da foto, pois ela pode estar em outros destaques.
+
+A home usa o conteúdo do painel quando JavaScript e API estão disponíveis. O HTML estático original é a alternativa em caso de indisponibilidade ou JavaScript desativado; não use ocultação de cards para retirar informação confidencial. A edição publicada não precisa de redeploy, mas é necessário instalar esta versão com a migration `002_home_content.sql` uma vez.
+
+
+## Produtos da loja (com preço e pedido)
+
+Entre em `/admin` com sua conta administrativa e abra **Productos**. Preencha título, descrição, categoria, foto, preço em euros, tipo, estoque disponível e prazo em dias corridos. Marque a opção de publicação e salve. O card, o preço e o botão de adicionar são criados automaticamente em `/tienda`.
+
+Para a foto:
+
+1. Coloque o arquivo em `public/shop/`, por exemplo `bolsa-floral.jpg`.
+2. Publique a atualização do frontend na Vercel.
+3. No campo da foto do painel, informe `/shop/bolsa-floral.jpg`. Também é aceita uma URL HTTPS de imagem que você controla.
+
+Use JPG ou WebP, idealmente até 300 KB e cerca de 1000 px de largura. As imagens dessa pasta são servidas como estão; não passam pela otimização da galeria. Não coloque arquivos na pasta `dist/` ou no disco do Render. **O painel ainda não faz upload:** o campo recebe o endereço da imagem.
+
+Preço é o valor final de uma unidade; o frete configurado na API é somado ao pedido. Estoque significa unidades disponíveis, sem contar as já reservadas. Produtos sob encomenda usam o prazo cadastrado e dispensam estoque físico. Para retirar uma peça de venda, desmarque sua publicação: pedidos antigos continuam preservados.
+
+## Galeria original no código (alternativa estática)
+
+O passo a passo abaixo mantém o conteúdo estático de segurança da galeria. Depois que o painel estiver ativo, use Página inicial para alterar a seleção publicada; editar este arquivo não sobrescreve o banco. Ela usa fotos e links de WhatsApp. Para vender com pagamento, cadastre também o produto no painel conforme acima.
+
+
 Você só precisa colocar a foto na pasta e cadastrar a peça em **`src/content/pieces.ts`**. A página cria o card, o filtro da técnica, a janela de detalhes e os botões de WhatsApp automaticamente.
 
 ## 1. Coloque a foto na pasta

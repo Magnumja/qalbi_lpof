@@ -3,7 +3,6 @@ import AnimatedText from './AnimatedText.astro';
 import { Image } from 'astro:assets';
 import embroidery from '../assets/photos/embroidery.jpg';
 import Arrow from './Arrow.astro';
-import { contactUrl } from '../content/site';
 ---
 
 <section class="hero wrap" aria-labelledby="hero-title">
@@ -29,14 +28,8 @@ import { contactUrl } from '../content/site';
       <br class="desktop-break" /> lo que sientes en algo que puedes abrazar.
     </p>
     <div class="hero-actions">
-      <a
-        class="button"
-        id="hero-contact"
-        href={contactUrl()}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Cuéntame tu idea <Arrow diagonal />
+      <a class="button" id="hero-contact" href="/tienda">
+        Explorar la tienda <Arrow diagonal />
       </a>
       <a class="explore-link" href="#creaciones">
         Explorar creaciones <span aria-hidden="true">↓</span>
@@ -55,6 +48,7 @@ import { contactUrl } from '../content/site';
     <div class="photo-outline" aria-hidden="true"></div>
     <figure class="hero-photo">
       <Image
+        data-home-photo="hero"
         src={embroidery}
         alt="Bastidor Qalbi bordado a mano con flores y la frase: Lo que toca el alma nunca se olvida"
         width={540}

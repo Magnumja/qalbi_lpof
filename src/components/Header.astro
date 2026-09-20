@@ -1,25 +1,19 @@
 ---
 import Arrow from './Arrow.astro';
-import { contactUrl } from '../content/site';
 ---
 
 <header class="site-header">
   <div class="header-inner wrap">
-    <a href="#" class="brand" aria-label="Qalbi Atelier — inicio">
+    <a href="/" class="brand" aria-label="Qalbi Atelier — inicio">
       <img src="/brand/logo.svg" width="124" height="70" alt="Qalbi Atelier" />
     </a>
     <nav aria-label="Navegación principal" class="desktop-nav">
-      <a href="#creaciones">Las creaciones</a>
-      <a href="#atelier">El atelier</a>
-      <a href="#encargos">Cómo encargar</a>
+      <a href="/tienda">La tienda</a>
+      <a href="/#atelier">El atelier</a>
+      <a href="/encargo">Cómo encargar</a>
     </nav>
-    <a
-      class="header-contact"
-      href={contactUrl()}
-      target="_blank"
-      rel="noreferrer"
-    >
-      Hagamos algo especial <Arrow diagonal />
+    <a class="header-contact" href="/cuenta">
+      Mi cuenta <Arrow diagonal />
     </a>
     <details class="mobile-menu">
       <summary aria-label="Abrir menú">
@@ -27,11 +21,11 @@ import { contactUrl } from '../content/site';
         <span></span>
       </summary>
       <nav aria-label="Navegación móvil">
-        <a href="#creaciones">Las creaciones</a>
-        <a href="#atelier">El atelier</a>
-        <a href="#encargos">Cómo encargar</a>
-        <a href="#contacto">
-          Cuéntame tu idea <span aria-hidden="true">↗</span>
+        <a href="/tienda">La tienda</a>
+        <a href="/#atelier">El atelier</a>
+        <a href="/encargo">Cómo encargar</a>
+        <a href="/cuenta">
+          Mis pedidos <span aria-hidden="true">↗</span>
         </a>
       </nav>
     </details>
