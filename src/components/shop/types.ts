@@ -29,6 +29,8 @@ export interface Order {
   number: string;
   customer_name: string;
   customer_email?: string;
+  customer_phone?: string | null;
+  unread_count?: number;
   kind: 'shop' | 'custom';
   status: string;
   payment_status: string;

@@ -1,7 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import {
   authenticate,
   adminOnly,
@@ -23,9 +23,16 @@ import {
   quoteSchema,
   progressSchema,
   messageSchema,
+  accessLinkSchema,
   uuid,
 } from './schemas.mjs';
-import { accessibleOrder, createOrder, addEvent } from './orders.mjs';
+import {
+  accessibleOrder,
+  createOrder,
+  addEvent,
+  unreadColumn,
+  markRead,
+} from './orders.mjs';
 import { createPayments } from './payments.mjs';
 import { transaction } from './db.mjs';
 import { HttpError, requireValue } from './errors.mjs';
@@ -161,6 +168,47 @@ export function createApp(pool, config, stripeClient) {
   }
   app.post('/api/auth/login', (req, res) => login(req, res, 'customer'));
   app.post('/api/auth/admin/login', (req, res) => login(req, res, 'admin'));
+  // Link único enviado pelo atelier: define nova senha e entra sem a antiga.
+  app.post('/api/auth/access-link', async (req, res) => {
+    const input = accessLinkSchema.parse(req.body);
+    await rateLimit(pool, `access-link:${req.ip}`, 20);
+    const hash = await hashPassword(input.password);
+    const user = await transaction(pool, async (db) => {
+      const link = (
+        await db.query(
+          "SELECT l.user_id FROM access_links l JOIN users u ON u.id=l.user_id WHERE l.token_hash=$1 AND l.used_at IS NULL AND l.expires_at>now() AND u.role='customer' FOR UPDATE OF l",
+          [tokenHash(input.token)],
+        )
+      ).rows[0];
+      requireValue(
+        link,
+        410,
+        'Este enlace ya no es válido. Pide uno nuevo al atelier.',
+      );
+      await db.query(
+        'UPDATE access_links SET used_at=now() WHERE token_hash=$1',
+        [tokenHash(input.token)],
+      );
+      await db.query('UPDATE users SET password_hash=$2 WHERE id=$1', [
+        link.user_id,
+        hash,
+      ]);
+      await db.query('DELETE FROM sessions WHERE user_id=$1', [link.user_id]);
+      return (
+        await db.query(
+          'SELECT id,name,email,phone,role FROM users WHERE id=$1',
+          [link.user_id],
+        )
+      ).rows[0];
+    });
+    const previous = sessionToken(req);
+    if (previous)
+      await pool.query('DELETE FROM sessions WHERE token_hash=$1', [
+        tokenHash(previous),
+      ]);
+    await startSession(pool, res, user.id, config);
+    res.json({ user });
+  });
   app.use('/api', authenticate(pool));
   app.get('/api/auth/admin/me', adminOnly, (req, res) =>
     res.json({ user: req.user }),
@@ -244,7 +292,7 @@ export function createApp(pool, config, stripeClient) {
   });
   app.get('/api/orders', async (req, res) => {
     const { rows } = await pool.query(
-      'SELECT o.*,u.name AS customer_name FROM orders o JOIN users u ON o.user_id=u.id WHERE o.user_id=$1 ORDER BY o.created_at DESC LIMIT 100',
+      `SELECT o.*,u.name AS customer_name,${unreadColumn('$1')} FROM orders o JOIN users u ON o.user_id=u.id WHERE o.user_id=$1 ORDER BY o.created_at DESC LIMIT 100`,
       [req.user.id],
     );
     res.json({ orders: rows });
@@ -289,6 +337,7 @@ export function createApp(pool, config, stripeClient) {
         [id],
       ),
     ]);
+    await markRead(pool, id, req.user.id);
     res.json({
       order,
       items: items.rows,
@@ -305,6 +354,7 @@ export function createApp(pool, config, stripeClient) {
       'INSERT INTO messages(order_id,sender_id,body) VALUES($1,$2,$3)',
       [id, req.user.id, body],
     );
+    await markRead(pool, id, req.user.id);
     res.status(201).json({ ok: true });
   });
   app.post('/api/orders/:id/checkout', async (req, res) => {
@@ -328,6 +378,40 @@ export function createApp(pool, config, stripeClient) {
     await payments.reconcile(uuid.parse(req.params.id), req.user, sessionId);
     res.json({ ok: true });
   });
+  // O atelier gera um link único para o cliente do pedido definir nova senha.
+  app.post('/api/admin/orders/:id/access-link', async (req, res) => {
+    const id = uuid.parse(req.params.id);
+    await rateLimit(pool, `access-link-admin:${req.user.id}`, 30, 3600);
+    const order = await accessibleOrder(pool, id, req.user);
+    const token = randomBytes(32).toString('hex');
+    const expires = await transaction(pool, async (db) => {
+      const customer = (
+        await db.query("SELECT id FROM users WHERE id=$1 AND role='customer'", [
+          order.user_id,
+        ])
+      ).rows[0];
+      requireValue(customer, 409, 'Solo se generan enlaces para clientes.');
+      await db.query(
+        'DELETE FROM access_links WHERE user_id=$1 AND used_at IS NULL',
+        [order.user_id],
+      );
+      const { rows } = await db.query(
+        "INSERT INTO access_links(token_hash,user_id,created_by,expires_at) VALUES($1,$2,$3,now()+interval '24 hours') RETURNING expires_at",
+        [tokenHash(token), order.user_id, req.user.id],
+      );
+      await addEvent(
+        db,
+        id,
+        req.user.id,
+        'El atelier generó un enlace de acceso para el cliente.',
+      );
+      return rows[0].expires_at;
+    });
+    res.status(201).json({
+      url: `${config.FRONTEND_URL}/cuenta?acceso=${token}`,
+      expires_at: expires,
+    });
+  });
   app.get('/api/admin/orders', async (req, res) => {
     const page = z.coerce
       .number()
@@ -336,12 +420,13 @@ export function createApp(pool, config, stripeClient) {
       .max(10000)
       .parse(req.query.page ?? 0);
     const { rows } = await pool.query(
-      `SELECT o.*,u.name AS customer_name FROM orders o JOIN users u ON o.user_id=u.id ORDER BY o.created_at DESC LIMIT 50 OFFSET $1`,
-      [page * 50],
+      `SELECT o.*,u.name AS customer_name,${unreadColumn('$2')} FROM orders o JOIN users u ON o.user_id=u.id ORDER BY o.created_at DESC LIMIT 50 OFFSET $1`,
+      [page * 50, req.user.id],
     );
     const stats = (
       await pool.query(
-        `SELECT count(*) FILTER(WHERE status='requested')::int AS requested,count(*) FILTER(WHERE status='awaiting_payment')::int AS awaiting_payment,count(*) FILTER(WHERE status IN ('confirmed','in_progress','ready'))::int AS active,count(*) FILTER(WHERE due_at<current_date AND status NOT IN ('completed','cancelled','shipped'))::int AS overdue FROM orders`,
+        `SELECT count(*) FILTER(WHERE status='requested')::int AS requested,count(*) FILTER(WHERE status='awaiting_payment')::int AS awaiting_payment,count(*) FILTER(WHERE status IN ('confirmed','in_progress','ready'))::int AS active,count(*) FILTER(WHERE due_at<current_date AND status NOT IN ('completed','cancelled','shipped'))::int AS overdue,(SELECT count(*)::int FROM (SELECT ${unreadColumn('$1')} FROM orders o) t WHERE t.unread_count>0) AS unread FROM orders`,
+        [req.user.id],
       )
     ).rows[0];
     res.json({ orders: rows, stats });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from './api';
-import { contactUrl } from '../../content/site';
+import { site, whatsappUrl } from '../../content/site';
 import type { User } from './types';
 export default function AuthForm({
   onLogin,
@@ -153,11 +153,18 @@ export default function AuthForm({
             {register ? 'Ya tengo una cuenta' : 'Crear una cuenta'}
           </button>
           <p className="shop-muted">
-            ¿Necesitas recuperar el acceso?{' '}
-            <a href={contactUrl()} target="_blank" rel="noreferrer">
-              Contacta con el atelier
-            </a>
-            .
+            ¿Olvidaste la contraseña?{' '}
+            <a
+              href={whatsappUrl(
+                site.whatsapp,
+                'Hola, no consigo entrar en mi cuenta de Qalbi. ¿Me envías un enlace de acceso?',
+              )}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Escribe al atelier
+            </a>{' '}
+            y te enviaremos un enlace para elegir una nueva.
           </p>
         </>
       )}

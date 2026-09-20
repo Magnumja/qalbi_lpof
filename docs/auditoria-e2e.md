@@ -63,3 +63,32 @@ Use banco e contas de teste, sem cartões ou pedidos reais. Na loja, abra os det
 Para encomendas, entre em **Encargo**, descreva a peça e envie. No painel, confira os dados e informe orçamento e prazo. Volte à conta do cliente e confirme que o próximo passo está claro. Pagamento deve ser homologado separadamente em modo de teste do Stripe.
 
 Para conteúdo, use **Página inicial**, altere um card de teste, confira a prévia e publique; recarregue a home. Em **Productos**, teste salvar, continuar editando e tentar trocar de seção sem salvar. Confirme que cancelar o descarte mantém o texto digitado.
+
+## Auditoria de telas — proximidade cliente ⇄ atelier (20/09/2026)
+
+Objetivo: em cada tela, a pessoa deve saber **o que fazer a seguir** e **como falar com o outro lado** sem sair procurando. Revisão feita no navegador (Chrome headless, 390 px e 1280 px) e por leitura do código, com dados de teste locais.
+
+| Prioridade | Tela | Gargalo observado | Resolução aplicada |
+| --- | --- | --- | --- |
+| Alta | Painel · pedido | O atelier via nome do cliente, mas não email nem telefone; para combinar detalhes fora do chat precisava consultar o banco | Bloco **Cliente** com email (mailto) e WhatsApp com mensagem pronta citando o pedido |
+| Alta | Conta · lista / Painel · lista | Ninguém sabia que havia mensagem nova sem abrir cada pedido | Contador de mensagens novas por pessoa (`order_reads`), selo por pedido, resumo no topo da conta e indicador "Conversaciones con mensajes nuevos" no painel |
+| Alta | Login · cliente | Esqueceu a senha → dependia de intervenção técnica | Atelier gera **link de acesso** único (24 h) a partir do pedido, com copiar e enviar por WhatsApp; `/cuenta?acceso=…` pede nova senha e entra, revogando sessões antigas |
+| Média | Conta · pedido | Chat era o único canal; sem alternativa quando o cliente prefere WhatsApp | Link "Escribe al atelier" com o número do pedido na mensagem |
+| Média | Painel · produtos | Foto exigia URL ou arquivo em `public/shop/`; fluxo diferente do editor da home | Mesmo `PhotoField` da home: upload otimizado, prévia, placeholder quando vazio |
+| Baixa | Conta · link expirado | Texto mandava "pedir na conversa", mas quem perdeu a senha não acessa a conversa | Link direto de WhatsApp para pedir outro |
+
+Comportamento a conhecer: conversas antigas contam como "novas" até serem abertas uma vez após esta atualização, porque não havia registro de leitura antes. Abrir o pedido ou enviar mensagem marca a leitura.
+
+### Evidência desta rodada
+
+- `npm run validate`: formatação, 65 arquivos sem erros de tipos, 9 testes de conteúdo/proxy, **19 testes de API** (3 novos: contagem de mensagens por pessoa; link de acesso único/expirado/revogação de sessões; produto com foto subida) e build de 6 páginas.
+- Fluxo real via proxy do preview: cadastro com telefone → encomenda → mensagem do cliente → painel mostra 1 nova → abrir zera → resposta do atelier → conta mostra 1 nova → link de acesso gerado → nova senha → sessão antiga expirada, nova sessão válida.
+- Capturas em 390 px: conta (lista com selo), painel (5 indicadores, lista com selos), pedido no painel (bloco Cliente e "El cliente no puede entrar"), tela de nova senha, editor de produtos com upload. Sem rolagem horizontal em nenhuma.
+- Ambiente: o `server/.env` local apontava para um PostgreSQL em porta antiga; os testes rodaram com `TEST_DATABASE_URL` no PostgreSQL temporário atual (`qalbi_test`). Ajuste o `.env` local se for repetir.
+
+### Observações não resolvidas (próximas)
+
+1. **Aviso fora do site:** o contador só aparece ao entrar. Email/WhatsApp automático quando há orçamento ou resposta continua sendo a maior melhoria de proximidade; exige provedor externo.
+2. **Pedido no celular (painel):** o formulário de orçamento fica após Cliente e Entrega; em 390 px são ~2 telas de rolagem até a ação principal. Avaliar mover "Preparar presupuesto" logo abaixo de "Tu idea" quando o status for `requested`.
+3. **Lista do painel sem filtro:** com dezenas de pedidos, "os que precisam de mim" (por orçar, mensagem nova, prazo vencido) deveriam ser filtráveis a partir dos indicadores.
+4. **Teste em telefone físico e leitor de tela** seguem pendentes; as capturas são de navegador headless.

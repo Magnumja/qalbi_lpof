@@ -3,23 +3,8 @@ import { z } from 'zod';
 import sharp from 'sharp';
 import { rateLimit } from './auth.mjs';
 import { HttpError, requireValue } from './errors.mjs';
+import { imageUrl } from './schemas.mjs';
 
-const imageUrl = z
-  .string()
-  .max(1000)
-  .refine((value) => {
-    if (
-      /^\/shop\/[a-zA-Z0-9_.-]+$/.test(value) ||
-      /^\/api\/media\/[a-f0-9-]{36}$/.test(value)
-    )
-      return true;
-    try {
-      const url = new URL(value);
-      return url.protocol === 'https:' && !url.username && !url.password;
-    } catch {
-      return false;
-    }
-  }, 'Usa una foto subida, /shop/archivo.jpg o una URL HTTPS.');
 const photo = z.object({
   src: imageUrl,
   alt: z.string().trim().min(3).max(300),

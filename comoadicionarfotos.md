@@ -24,13 +24,12 @@ A home usa o conteúdo do painel quando JavaScript e API estão disponíveis. O 
 
 Entre em `/admin` com sua conta administrativa e abra **Productos**. Preencha título, descrição, categoria, foto, preço em euros, tipo, estoque disponível e prazo em dias corridos. Marque a opção de publicação e salve. O card, o preço e o botão de adicionar são criados automaticamente em `/tienda`.
 
-Para a foto:
+Para a foto, em **Foto de la pieza** use **Subir foto desde tu dispositivo** (JPG, PNG ou WebP até 12 MB), igual ao editor da home: a imagem é reduzida, convertida para WebP e guardada no banco ao salvar a peça. Alternativas sem upload:
 
-1. Coloque o arquivo em `public/shop/`, por exemplo `bolsa-floral.jpg`.
-2. Publique a atualização do frontend na Vercel.
-3. No campo da foto do painel, informe `/shop/bolsa-floral.jpg`. Também é aceita uma URL HTTPS de imagem que você controla.
+1. Coloque o arquivo em `public/shop/`, por exemplo `bolsa-floral.jpg`, publique o frontend na Vercel e informe `/shop/bolsa-floral.jpg` no campo de endereço.
+2. Ou informe uma URL HTTPS de imagem que você controla.
 
-Use JPG ou WebP, idealmente até 300 KB e cerca de 1000 px de largura. As imagens dessa pasta são servidas como estão; não passam pela otimização da galeria. Não coloque arquivos na pasta `dist/` ou no disco do Render. **O painel ainda não faz upload:** o campo recebe o endereço da imagem.
+As imagens de `public/shop/` são servidas como estão; não passam por otimização. Não coloque arquivos na pasta `dist/` ou no disco do Render.
 
 Preço é o valor final de uma unidade; o frete configurado na API é somado ao pedido. Estoque significa unidades disponíveis, sem contar as já reservadas. Produtos sob encomenda usam o prazo cadastrado e dispensam estoque físico. Para retirar uma peça de venda, desmarque sua publicação: pedidos antigos continuam preservados.
 

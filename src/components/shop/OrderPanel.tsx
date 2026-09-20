@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, date, money, statusLabel } from './api';
 import type { OrderDetail } from './types';
+import { orderContactUrl, whatsappUrl } from '../../content/site';
+import AccessLinkPanel from './AccessLinkPanel';
 export default function OrderPanel({
   id,
   admin,
@@ -120,6 +122,34 @@ export default function OrderPanel({
             <div className="order-brief">
               <h2>Tu idea</h2>
               <p>{order.brief}</p>
+            </div>
+          )}
+          {admin && (
+            <div className="order-customer">
+              <h2>Cliente</h2>
+              <p>
+                {order.customer_name}
+                <br />
+                <a href={`mailto:${order.customer_email}`}>
+                  {order.customer_email}
+                </a>
+                {order.customer_phone && (
+                  <>
+                    <br />
+                    <a
+                      href={whatsappUrl(
+                        order.customer_phone,
+                        `Hola ${order.customer_name.split(' ')[0]}, te escribo desde Qalbi por tu pedido #${order.number}.`,
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WhatsApp {order.customer_phone} ↗
+                    </a>
+                  </>
+                )}
+              </p>
+              <AccessLinkPanel orderId={id} phone={order.customer_phone} />
             </div>
           )}
           <div className="order-address">
@@ -342,6 +372,20 @@ export default function OrderPanel({
           <p className="shop-muted">
             Últimos 200 mensajes · se actualiza cada 10 segundos mientras estás
             aquí.
+            {!admin && (
+              <>
+                {' '}
+                ¿Prefieres WhatsApp?{' '}
+                <a
+                  href={orderContactUrl(order.number)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Escribe al atelier
+                </a>
+                .
+              </>
+            )}
           </p>
           <div
             className="chat-messages"

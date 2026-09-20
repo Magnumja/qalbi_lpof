@@ -4,6 +4,7 @@ import type { ShopData, User } from './types';
 import Store from './Store';
 import AuthForm from './AuthForm';
 import Account from './Account';
+import AccessLinkForm from './AccessLinkForm';
 import '../../styles/shop.css';
 export default function ShopApp({
   mode,
@@ -13,8 +14,11 @@ export default function ShopApp({
   const [user, setUser] = useState<User | null>(null),
     [shop, setShop] = useState<ShopData | null>(null),
     [loading, setLoading] = useState(true),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [accessToken, setAccessToken] = useState('');
   useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('acceso');
+    if (token && /^[a-f0-9]{64}$/.test(token)) setAccessToken(token);
     let active = true;
     Promise.all([
       api<{ user: User }>('/auth/me')
@@ -96,6 +100,8 @@ export default function ShopApp({
         />
       ) : user ? (
         <Account user={user} paymentEnabled={shop?.payment_enabled ?? false} />
+      ) : accessToken ? (
+        <AccessLinkForm token={accessToken} onLogin={setUser} />
       ) : (
         <AuthForm onLogin={setUser} />
       )}

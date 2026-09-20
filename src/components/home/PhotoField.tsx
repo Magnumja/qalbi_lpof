@@ -32,21 +32,27 @@ export default function PhotoField({
   value,
   onChange,
   onBusy,
+  withAlt = true,
 }: {
   value: HomePhoto;
   onChange: (photo: HomePhoto) => void;
   onBusy: (busy: boolean) => void;
+  withAlt?: boolean;
 }) {
   const id = useId();
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   return (
     <div className="home-photo-field">
-      <img
-        className="home-photo-preview"
-        src={value.src || undefined}
-        alt={value.alt || 'Vista previa de la foto'}
-      />
+      {value.src ? (
+        <img
+          className="home-photo-preview"
+          src={value.src}
+          alt={value.alt || 'Vista previa de la foto'}
+        />
+      ) : (
+        <p className="home-photo-preview home-photo-empty">Sin foto todavía</p>
+      )}
       <label>
         Subir foto desde tu dispositivo
         <input
@@ -80,7 +86,7 @@ export default function PhotoField({
       </label>
       <small id={id}>
         JPG, PNG o WebP, hasta 12 MB. La foto se optimiza automáticamente y se
-        publica al guardar la página.
+        publica al guardar.
       </small>
       {uploading && <p role="status">Preparando y subiendo la foto…</p>}
       {error && (
@@ -97,16 +103,18 @@ export default function PhotoField({
           onChange={(e) => onChange({ ...value, src: e.target.value })}
         />
       </label>
-      <label>
-        Descripción de la foto (accesibilidad)
-        <input
-          value={value.alt}
-          required
-          minLength={3}
-          maxLength={300}
-          onChange={(e) => onChange({ ...value, alt: e.target.value })}
-        />
-      </label>
+      {withAlt && (
+        <label>
+          Descripción de la foto (accesibilidad)
+          <input
+            value={value.alt}
+            required
+            minLength={3}
+            maxLength={300}
+            onChange={(e) => onChange({ ...value, alt: e.target.value })}
+          />
+        </label>
+      )}
     </div>
   );
 }

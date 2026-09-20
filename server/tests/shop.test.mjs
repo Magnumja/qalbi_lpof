@@ -135,7 +135,7 @@ async function webhook(event) {
 before(async () => {
   await migrate(pool);
   await pool.query(
-    'TRUNCATE users,products,sessions,orders,order_items,messages,order_events,stripe_events,rate_limits RESTART IDENTITY CASCADE',
+    'TRUNCATE users,products,sessions,orders,order_items,messages,order_events,order_reads,access_links,stripe_events,rate_limits RESTART IDENTITY CASCADE',
   );
   const app = createApp(
     pool,
@@ -789,4 +789,187 @@ test('resumo administrativo inclui pedidos pendentes de pagamento', async () => 
     )
   ).rows[0].count;
   assert.equal(response.data.stats.awaiting_payment, expected);
+});
+test('mensagens novas são contadas por pessoa e zeradas ao abrir o pedido', async () => {
+  const p = await product(),
+    o = (await order(alice, p)).data.order;
+  const unread = async (who, path = '/api/orders') =>
+    (await call(path, 'GET', undefined, who.cookie)).data.orders.find(
+      (row) => row.id === o.id,
+    )?.unread_count;
+  assert.equal(await unread(alice), 0);
+  await call(
+    `/api/orders/${o.id}/messages`,
+    'POST',
+    { body: '¿Puede llevar otro color?' },
+    alice.cookie,
+  );
+  // Quem escreve não vê a própria mensagem como nova.
+  assert.equal(await unread(alice), 0);
+  const adminList = await call(
+    '/api/admin/orders',
+    'GET',
+    undefined,
+    admin.cookie,
+  );
+  assert.equal(adminList.data.stats.unread, 1);
+  assert.equal(await unread(admin, '/api/admin/orders'), 1);
+  const detail = await call(
+    `/api/orders/${o.id}`,
+    'GET',
+    undefined,
+    admin.cookie,
+  );
+  assert.equal(detail.data.order.customer_email, 'alice@example.test');
+  assert.equal(await unread(admin, '/api/admin/orders'), 0);
+  await call(
+    `/api/orders/${o.id}/messages`,
+    'POST',
+    { body: 'Claro, dime cuál.' },
+    admin.cookie,
+  );
+  await call(
+    `/api/orders/${o.id}/messages`,
+    'POST',
+    { body: 'Te enseño una muestra.' },
+    admin.cookie,
+  );
+  assert.equal(await unread(alice), 2);
+  assert.equal(await unread(bob), undefined);
+  await call(`/api/orders/${o.id}`, 'GET', undefined, alice.cookie);
+  assert.equal(await unread(alice), 0);
+  await call(`/api/orders/${o.id}/cancel`, 'POST', {}, alice.cookie);
+});
+test('link de acesso do atelier é único, expira e redefine a senha do cliente', async () => {
+  const carol = await register('Carol'),
+    p = await product(),
+    o = (await order(carol, p)).data.order;
+  assert.equal(
+    (
+      await call(
+        `/api/admin/orders/${o.id}/access-link`,
+        'POST',
+        {},
+        carol.cookie,
+      )
+    ).status,
+    403,
+  );
+  const first = await call(
+    `/api/admin/orders/${o.id}/access-link`,
+    'POST',
+    {},
+    admin.cookie,
+  );
+  assert.equal(first.status, 201);
+  const second = await call(
+    `/api/admin/orders/${o.id}/access-link`,
+    'POST',
+    {},
+    admin.cookie,
+  );
+  const token = (url) => new URL(url).searchParams.get('acceso');
+  assert.match(token(first.data.url), /^[a-f0-9]{64}$/);
+  assert.equal(new URL(first.data.url).origin, origin);
+  // Um novo link invalida o anterior ainda não usado.
+  assert.equal(
+    (
+      await call('/api/auth/access-link', 'POST', {
+        token: token(first.data.url),
+        password: 'new-password-for-carol-2026',
+      })
+    ).status,
+    410,
+  );
+  const redeemed = await call('/api/auth/access-link', 'POST', {
+    token: token(second.data.url),
+    password: 'new-password-for-carol-2026',
+  });
+  assert.equal(redeemed.status, 200);
+  assert.equal(redeemed.data.user.id, carol.id);
+  // Sessões antigas caem; o link não pode ser reutilizado.
+  assert.equal(
+    (await call('/api/auth/me', 'GET', undefined, carol.cookie)).status,
+    401,
+  );
+  assert.equal(
+    (await call('/api/auth/me', 'GET', undefined, redeemed.cookie)).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call('/api/auth/access-link', 'POST', {
+        token: token(second.data.url),
+        password: 'another-password-for-carol',
+      })
+    ).status,
+    410,
+  );
+  assert.equal(
+    (
+      await call('/api/auth/login', 'POST', {
+        identifier: 'carol@example.test',
+        password: 'new-password-for-carol-2026',
+      })
+    ).status,
+    200,
+  );
+  const expired = await call(
+    `/api/admin/orders/${o.id}/access-link`,
+    'POST',
+    {},
+    admin.cookie,
+  );
+  await pool.query(
+    "UPDATE access_links SET expires_at=now()-interval '1 minute' WHERE used_at IS NULL",
+  );
+  assert.equal(
+    (
+      await call('/api/auth/access-link', 'POST', {
+        token: token(expired.data.url),
+        password: 'late-password-for-carol-2026',
+      })
+    ).status,
+    410,
+  );
+  const events = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, admin.cookie)
+  ).data.events;
+  assert.ok(events.some((e) => e.description.includes('enlace de acceso')));
+  await call(`/api/orders/${o.id}/cancel`, 'POST', {}, redeemed.cookie);
+});
+test('produto aceita foto subida pelo painel', async () => {
+  const media = randomUUID();
+  const saved = await call(
+    '/api/admin/products',
+    'POST',
+    {
+      title: 'Peça com foto subida',
+      description: 'Produto fictício exclusivo do teste automatizado.',
+      category: 'Bordado',
+      image_url: `/api/media/${media}`,
+      price_cents: 2500,
+      kind: 'made_to_order',
+      stock: 0,
+      lead_days: 7,
+      active: false,
+    },
+    admin.cookie,
+  );
+  assert.equal(saved.status, 201);
+  assert.equal(saved.data.product.image_url, `/api/media/${media}`);
+  assert.equal(
+    (
+      await call(
+        '/api/admin/products',
+        'POST',
+        {
+          ...saved.data.product,
+          image_url: 'http://insecure.example/foto.jpg',
+        },
+        admin.cookie,
+      )
+    ).status,
+    400,
+  );
 });

@@ -389,6 +389,43 @@
 .status-cancelled {
   background: #e9d5d0;
 }
+.order-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.unread-badge {
+  background: var(--moss);
+  color: var(--paper);
+}
+.unread-summary {
+  font-weight: 600;
+}
+.admin-stats .admin-stat-unread {
+  background: var(--moss);
+  color: var(--paper);
+}
+.order-customer {
+  margin-top: 1.5rem;
+}
+.order-customer a {
+  overflow-wrap: anywhere;
+}
+.shop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+.shop-fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.shop-fieldset legend {
+  padding: 0 0.4rem;
+}
 .order-history {
   margin-top: 2rem;
   border-top: 1px solid var(--line);
@@ -432,7 +469,7 @@
 }
 .admin-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1rem;
   margin: 1rem 0 2rem;
 }
@@ -441,7 +478,7 @@
   background: #e2e7d7;
   border-radius: 8px;
 }
-.admin-stats > div:last-child {
+.admin-stats > div:nth-child(4) {
   background: #eddee3;
 }
 .admin-stats strong {
@@ -628,6 +665,9 @@
   }
   .admin-stats span {
     font-size: 0.7rem;
+  }
+  .admin-stats .admin-stat-unread {
+    grid-column: 1 / -1;
   }
   .order-row {
     grid-template-columns: 1fr 1fr;

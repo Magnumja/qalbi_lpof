@@ -51,6 +51,12 @@
   background: var(--paper);
   margin-bottom: 1rem;
 }
+.home-photo-empty {
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  font-size: 0.85rem;
+}
 .home-photo-field {
   display: grid;
   gap: 1rem;

@@ -4,11 +4,20 @@ import { requireValue } from './errors.mjs';
 
 export async function accessibleOrder(db, id, user, lock = false) {
   const { rows } = await db.query(
-    `SELECT o.*,u.name AS customer_name,u.email AS customer_email FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=$1 AND (o.user_id=$2 OR $3)${lock ? ' FOR UPDATE OF o' : ''}`,
+    `SELECT o.*,u.name AS customer_name,u.email AS customer_email,u.phone AS customer_phone FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=$1 AND (o.user_id=$2 OR $3)${lock ? ' FOR UPDATE OF o' : ''}`,
     [id, user.id, user.role === 'admin'],
   );
   requireValue(rows[0], 404, 'Pedido no encontrado.');
   return rows[0];
+}
+// Mensagens de outras pessoas depois da última leitura desta pessoa.
+export const unreadColumn = (userParam) =>
+  `(SELECT count(*)::int FROM messages m WHERE m.order_id=o.id AND m.sender_id<>${userParam} AND m.created_at>COALESCE((SELECT r.read_at FROM order_reads r WHERE r.order_id=o.id AND r.user_id=${userParam}),'epoch')) AS unread_count`;
+export async function markRead(db, orderId, userId) {
+  await db.query(
+    'INSERT INTO order_reads(order_id,user_id,read_at) VALUES($1,$2,now()) ON CONFLICT(order_id,user_id) DO UPDATE SET read_at=now()',
+    [orderId, userId],
+  );
 }
 export async function addEvent(db, id, actor, description) {
   await db.query(

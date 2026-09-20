@@ -38,6 +38,7 @@ export default function Account({
       awaiting_payment: 0,
       active: 0,
       overdue: 0,
+      unread: 0,
     }),
     [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function Account({
       active = false;
     };
   }, [admin, page, selected, tab, refresh]);
+  const unreadTotal = orders.reduce((n, o) => n + (o.unread_count ?? 0), 0);
   if (admin && user.role !== 'admin')
     return (
       <div className="shop-empty">
@@ -121,6 +123,10 @@ export default function Account({
               <strong>{stats.overdue}</strong>
               <span>Revisar plazo</span>
             </div>
+            <div className="admin-stat-unread">
+              <strong>{stats.unread}</strong>
+              <span>Conversaciones con mensajes nuevos</span>
+            </div>
           </div>
           <div className="shop-tabs">
             <button
@@ -155,6 +161,12 @@ export default function Account({
       {notice && (
         <p className="shop-notice" role="status">
           {notice}
+        </p>
+      )}
+      {!admin && !loading && unreadTotal > 0 && (
+        <p className="shop-notice unread-summary" role="status">
+          El atelier te ha escrito: {unreadTotal}{' '}
+          {unreadTotal === 1 ? 'mensaje nuevo' : 'mensajes nuevos'}.
         </p>
       )}
       {tab === 'home' ? (
@@ -203,8 +215,17 @@ export default function Account({
                     </strong>
                     <small>{date(o.created_at)}</small>
                   </div>
-                  <span className={`order-badge status-${o.status}`}>
-                    {statusLabel[o.status]}
+                  <span className="order-badges">
+                    <span className={`order-badge status-${o.status}`}>
+                      {statusLabel[o.status]}
+                    </span>
+                    {(o.unread_count ?? 0) > 0 && (
+                      <span className="order-badge unread-badge">
+                        {o.unread_count === 1
+                          ? '1 mensaje nuevo'
+                          : `${o.unread_count} mensajes nuevos`}
+                      </span>
+                    )}
                   </span>
                   <div>
                     <small>Preparado para</small>

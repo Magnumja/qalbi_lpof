@@ -8,7 +8,7 @@
 
 **Produção:** depois da confirmação de pagamento, o admin avança uma etapa por vez: confirmado → em preparação → pronto → enviado → concluído. Pode ajustar prazo e referência de envio. Todas as mudanças relevantes ficam no histórico. Os indicadores mostram pedidos para orçar, em preparação e com prazo vencido.
 
-**Conversa:** somente dono do pedido e administradores podem ler/enviar mensagens. Últimas 200 mensagens são exibidas, com atualização a cada 10 segundos em aba visível. O banco mantém as anteriores. Não há anexos, aviso por email ou notificações push.
+**Conversa:** somente dono do pedido e administradores podem ler/enviar mensagens. Últimas 200 mensagens são exibidas, com atualização a cada 10 segundos em aba visível. O banco mantém as anteriores. Abrir o pedido ou enviar mensagem registra a leitura por pessoa (`order_reads`); as listas mostram quantas mensagens do outro lado chegaram desde então e o painel conta as conversas com novidades. Não há anexos, aviso por email ou notificações push. O painel mostra email e telefone do cliente com atalho de WhatsApp; o cliente tem atalho equivalente para o atelier.
 
 ## Estoque e pagamentos
 
@@ -36,8 +36,8 @@ Há limites persistidos para cadastro, login, pedidos e mensagens. Atrás do pro
 
 - EUR e frete fixo por pedido, países permitidos configuráveis; sem cotação por código postal, imposto automático, cupons ou múltiplas moedas.
 - Carrinho mantido na sessão da aba: atualizar ou navegar no site preserva IDs e quantidades. Fechar a aba encerra essa sessão. Ao carregar o catálogo, produtos indisponíveis são removidos e quantidades respeitam o estoque atual. Após criar o pedido, a seleção é limpa; o pedido permanece no banco. Dados pessoais e preços não são gravados nesse armazenamento.
-- Sem recuperação automática de senha ou verificação de email. Cliente autenticado pode trocar senha; recuperação exige atendimento e confirmação de identidade fora do site. Não há ferramenta pública para assumir conta de cliente.
-- Fotos de produtos cadastradas por URL HTTPS ou arquivo em `public/shop/`. A área Página inicial possui upload próprio para os destaques da home. Veja `comoadicionarfotos.md`.
+- Sem recuperação automática de senha ou verificação de email. Cliente autenticado pode trocar senha. Para recuperação, o atelier confirma a identidade pelo canal habitual e gera no pedido um **link de acesso** único (24 h, invalida o anterior); ao usá-lo o cliente define nova senha e todas as sessões antigas caem. Só funciona para contas de cliente. Não há ferramenta pública para assumir conta.
+- Fotos de produtos e da home usam o mesmo upload (reencodado em WebP, guardado no banco), ou URL HTTPS / arquivo em `public/shop/`. Veja `comoadicionarfotos.md`.
 - Catálogo público até 200 produtos, painel de produtos até 500, conta mostra 100 pedidos recentes e admin pagina de 50 em 50. Histórico mostra 100 eventos recentes.
 - Não inclui reembolso no painel, sincronização de disputas, emails transacionais, anexos ou relatórios fiscais.
 - Não houve homologação em conta Stripe, Neon, Render ou Vercel. Testes locais usam PostgreSQL real e provedor de pagamento simulado.

@@ -48,17 +48,28 @@ export const addressSchema = z.object({
   postal_code: z.string().trim().min(2).max(20),
   country: z.string().regex(/^[A-Z]{2}$/),
 });
+// Foto subida pelo painel, arquivo do site ou URL HTTPS sem credenciais.
+export const imageUrl = z
+  .string()
+  .max(1000)
+  .refine((value) => {
+    if (
+      /^\/shop\/[a-zA-Z0-9_.-]+$/.test(value) ||
+      /^\/api\/media\/[a-f0-9-]{36}$/.test(value)
+    )
+      return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, 'Usa una foto subida, /shop/archivo.jpg o una URL HTTPS.');
 export const productSchema = z.object({
   title: z.string().trim().min(2).max(150),
   description: z.string().trim().min(10).max(4000),
   category: z.string().trim().min(2).max(60),
-  image_url: z
-    .string()
-    .max(1000)
-    .refine(
-      (v) => /^\/shop\/[a-zA-Z0-9_.-]+$/.test(v) || /^https:\/\//.test(v),
-      'Usa una imagen HTTPS o /shop/archivo.jpg.',
-    ),
+  image_url: imageUrl,
   price_cents: z.number().int().min(100).max(1000000),
   kind: z.enum(['ready', 'made_to_order']),
   stock: z.number().int().min(0).max(10000),
@@ -92,4 +103,8 @@ export const progressSchema = z.object({
 });
 export const messageSchema = z.object({
   body: z.string().trim().min(1).max(4000),
+});
+export const accessLinkSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/),
+  password: z.string().min(12).max(128),
 });

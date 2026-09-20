@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, money } from './api';
 import type { Product } from './types';
+import PhotoField from '../home/PhotoField';
+import '../../styles/home-editor.css';
 export default function AdminProducts({
   onDirty,
 }: {
@@ -29,6 +31,8 @@ export default function AdminProducts({
     [formKey, setFormKey] = useState(0),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
+    [uploading, setUploading] = useState(false),
+    [image, setImage] = useState(''),
     [notice, setNotice] = useState('');
   useEffect(() => {
     api<{ products: Product[] }>('/admin/products')
@@ -45,6 +49,7 @@ export default function AdminProducts({
             if (!canLeave()) return;
             markDirty(false);
             setEditing(null);
+            setImage('');
             setFormKey(formKey + 1);
           }}
         >
@@ -64,6 +69,7 @@ export default function AdminProducts({
                 if (!canLeave()) return;
                 markDirty(false);
                 setEditing(p);
+                setImage(p.image_url);
                 setFormKey(formKey + 1);
               }}
             >
@@ -93,7 +99,7 @@ export default function AdminProducts({
               title: f.get('title'),
               description: f.get('description'),
               category: f.get('category'),
-              image_url: f.get('image'),
+              image_url: image,
               price_cents: Math.round(Number(f.get('price')) * 100),
               kind: f.get('kind'),
               stock: Number(f.get('stock')),
@@ -156,18 +162,19 @@ export default function AdminProducts({
               defaultValue={editing?.category ?? 'Bordado'}
             />
           </label>
-          <label>
-            Imagen (URL HTTPS o archivo del sitio)
-            <input
-              name="image"
-              required
-              defaultValue={editing?.image_url ?? '/shop/embroidery.jpg'}
+          <fieldset className="shop-fieldset">
+            <legend>Foto de la pieza</legend>
+            <PhotoField
+              key={formKey}
+              value={{ src: image, alt: editing?.title ?? '' }}
+              withAlt={false}
+              onBusy={setUploading}
+              onChange={(photo) => {
+                setImage(photo.src);
+                markDirty(true);
+              }}
             />
-            <small>
-              También puedes usar /shop/panda.jpg, /shop/wedding.jpg o una URL
-              HTTPS de tu alojamiento de fotos.
-            </small>
-          </label>
+          </fieldset>
           <div className="shop-form-row">
             <label>
               Precio en €
@@ -228,7 +235,7 @@ export default function AdminProducts({
             </p>
           )}
           <p role="status">{notice}</p>
-          <button className="button" disabled={busy}>
+          <button className="button" disabled={busy || uploading}>
             {busy ? 'Guardando…' : 'Guardar pieza'}
           </button>
         </form>
