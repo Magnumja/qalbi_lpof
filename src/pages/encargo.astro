@@ -1,0 +1,17 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import ShopApp from '../components/shop/ShopApp';
+---
+
+<Base title="Tu encargo — Qalbi Atelier">
+  <Header />
+  <ShopApp mode="custom" client:load />
+  <noscript>
+    <p class="wrap">
+      Activa JavaScript para acceder a la tienda y gestionar tus pedidos.
+    </p>
+  </noscript>
+  <Footer />
+</Base>

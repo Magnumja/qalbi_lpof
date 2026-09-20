@@ -1,5 +1,7 @@
 // Para adicionar uma criação: importe a foto e acrescente um objeto nesta lista.
 // Passo a passo completo: comoadicionarfotos.md, na raiz do projeto.
+import type { Piece } from './types';
+import { validatePieces } from './validate-pieces';
 import embroidery from '../assets/photos/embroidery.jpg';
 import wedding from '../assets/photos/wedding.jpg';
 import panda from '../assets/photos/panda.jpg';
@@ -63,16 +65,6 @@ export const pieces = [
     description:
       'Detalles de ganchillo que acompañan una ocasión especial. Un punto de partida para pensar en un regalo con algo de esa persona.',
   },
-] as const;
+] as const satisfies readonly Piece[];
 
-export interface GalleryPiece {
-  id: string;
-  title: string;
-  category: string;
-  alt: string;
-  description: string;
-  src: string;
-  srcSet: string;
-  width: number;
-  height: number;
-}
+validatePieces(pieces);

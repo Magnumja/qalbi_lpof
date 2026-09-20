@@ -20,3 +20,27 @@ import Footer from '../components/Footer.astro';
   </main>
   <Footer />
 </Base>
+
+<script>
+  import { loadHome } from '../components/home/load-home';
+  loadHome()
+    .then(({ content }) => {
+      for (const [key, photo] of Object.entries(content.photos)) {
+        const img = document.querySelector<HTMLImageElement>(
+          `[data-home-photo="${key}"]`,
+        );
+        if (!img) continue;
+        // Só substitui a imagem original depois de a nova foto carregar com sucesso.
+        const preload = new Image();
+        preload.onload = () => {
+          img.removeAttribute('srcset');
+          img.src = photo.src;
+          img.alt = photo.alt;
+        };
+        preload.src = photo.src;
+      }
+    })
+    .catch(() => {
+      /* O HTML original continua funcionando sem a API. */
+    });
+</script>
