@@ -150,6 +150,11 @@ test('acceso: el atelier genera un enlace y la clienta elige nueva contraseña',
   ).toBeVisible();
   await cliente.goto(link);
   await cliente.getByRole('button', { name: 'Salir' }).click();
+  // Salir navega a /cuenta tras el logout; esperar a que termine antes de
+  // reabrir el enlace, si no la navegación se pisa y el formulario no aparece.
+  await expect(
+    cliente.getByRole('heading', { name: 'Qué bonito verte.' }),
+  ).toBeVisible();
   await cliente.goto(link);
   await cliente.getByLabel('Nueva contraseña').fill('tercera-senha-e2e-2026');
   await cliente.getByRole('button', { name: 'Guardar y entrar' }).click();
