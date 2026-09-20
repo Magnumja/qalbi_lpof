@@ -12,7 +12,7 @@ Defina a política de backup/recuperação disponível na sua conta e teste uma 
 
 Importe o repositório, com a raiz do projeto como Root Directory. Framework Astro, comando `npm run build`, saída `dist`, Node 22. A pasta `api/` contém a função que encaminha chamadas ao Render. `vercel.json` já registra a configuração.
 
-Cadastre **BACKEND_URL** com a URL HTTPS do serviço Render. Não adicione prefixo `PUBLIC_`. Publique novamente após alterar variáveis da função. Não configure DATABASE_URL nem segredos Stripe no frontend.
+Cadastre **BACKEND_URL** com a URL HTTPS do serviço Render e **PROXY_SECRET** com o mesmo valor configurado no Render. Não adicione prefixo `PUBLIC_`. Publique novamente após alterar variáveis da função. Não configure DATABASE_URL nem segredos Stripe no frontend.
 
 Escolha um domínio estável. Seu endereço exato será `FRONTEND_URL` no Render, sem caminho. Um domínio alternativo deve redirecionar para o principal; origens diferentes são rejeitadas nos formulários. Previews Vercel precisam de uma API de homologação com sua própria origem e banco, sem acesso aos pedidos de produção.
 
@@ -34,6 +34,7 @@ Use o Blueprint `render.yaml` na raiz, ou configure um Web Service Node:
 | `STRIPE_WEBHOOK_SECRET` | Segredo do endpoint webhook do mesmo ambiente Stripe |
 | `SHIPPING_CENTS` | Frete fixo em centavos; `0` somente se envio grátis for intencional |
 | `SHIPPING_COUNTRIES` | Países ISO separados por vírgulas, inicialmente `ES` |
+| `PROXY_SECRET` | Obrigatório em produção (mínimo 16 caracteres, aleatório). O mesmo valor vai na Vercel: o proxy envia o IP do visitante só com esse segredo, e a API só confia nele com o segredo. Sem isso todos os visitantes contariam como um único IP nos limites |
 | `RESEND_API_KEY` | Opcional; chave do Resend para avisos por email. Configure junto com `NOTIFY_FROM` |
 | `NOTIFY_FROM` | Remetente verificado no Resend, por exemplo `Qalbi Atelier <avisos@seu-dominio.com>`; exige domínio com SPF/DKIM configurados no Resend |
 
@@ -106,6 +107,10 @@ Só depois troque para chaves live e para o segredo do endpoint live. Nunca mist
 
 Referências oficiais: [Neon — conectar](https://neon.com/docs/connect/connect-from-any-app), [Render Blueprint](https://render.com/docs/blueprint-spec), [Vercel Node runtime](https://vercel.com/docs/functions/runtimes/node-js), [Stripe — fulfillment](https://docs.stripe.com/checkout/fulfillment).
 
+
+## Cabeçalhos do site
+
+`vercel.json` aplica `Content-Security-Policy` (`default-src 'self'`, imagens de qualquer origem HTTPS, `connect-src 'self'`, `frame-ancestors 'none'`, formulários só para o próprio site e o Checkout Stripe). Os scripts das ilhas do Astro são inline, por isso `script-src` ainda inclui `'unsafe-inline'`; trocar por hashes gerados no build é a próxima etapa. Após publicar, confira no console do navegador que nenhuma página registra violação de CSP.
 
 ## Registros da API
 

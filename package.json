@@ -16,7 +16,8 @@
     "db:migrate": "npm run migrate --workspace=@qalbi/server",
     "test:server": "npm test --workspace=@qalbi/server",
     "db:test": "scripts/test-db.sh",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "forget": "npm run forget --workspace=@qalbi/server"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.5",

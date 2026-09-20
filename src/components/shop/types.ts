@@ -40,6 +40,7 @@ export interface Order {
   brief: string;
   due_at: string | null;
   tracking: string;
+  /** Só chega ao painel; o cliente não recebe dados de pagamento internos. */
   payment_intent?: string | null;
   address: Address;
   created_at: string;

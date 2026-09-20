@@ -367,6 +367,13 @@
   overflow-wrap: anywhere;
   margin: 0.4rem 0;
 }
+.session-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.6rem 0 1rem;
+}
 .chat-photo {
   display: block;
   max-width: min(100%, 260px);

@@ -26,17 +26,31 @@
 
 PostgreSQL contém usuários, hashes de senha, sessões, produtos, pedidos, itens, mensagens, histórico, eventos Stripe e limites de requisição. Endereço e email são dados pessoais; limitar acesso ao banco, manter backup e definir retenção faz parte da operação do atelier.
 
-Senhas usam scrypt com salt. Cookies de sessão são HttpOnly, SameSite=Lax e Secure em produção; o banco guarda apenas hash do token. Validade: sete dias. Logout revoga a sessão atual; troca de senha revoga todas. Alterações exigem origem exata e um header da aplicação. Queries são parametrizadas; campos são validados com Zod; mensagens são renderizadas como texto pelo React.
+Senhas usam scrypt com salt e são recusadas se aparecem em vazamentos conhecidos (consulta k-anonymity ao Have I Been Pwned: só os 5 primeiros caracteres do SHA-1 saem do servidor; se o serviço não responder, o cadastro segue). Cookies de sessão são HttpOnly, SameSite=Lax e Secure em produção; o banco guarda apenas hash do token. Cada uso renova a sessão por 7 dias, até 30 dias desde o início. Em **Dónde está abierta mi cuenta** o cliente vê aparelho, início e último uso de cada sessão e pode encerrar as demais. Logout revoga a sessão atual; troca de senha revoga todas. Novo acesso gera aviso por email quando o provedor está configurado. Alterações exigem origem exata e um header da aplicação. Queries são parametrizadas; campos são validados com Zod; mensagens são renderizadas como texto pelo React.
 
 Cadastro público só cria cliente. Pedidos de outra pessoa retornam 404; rotas administrativas retornam 403 para clientes. O admin é criado por comando de operador. Nenhuma chave Stripe ou credencial Neon é enviada ao navegador.
 
-Há limites persistidos para cadastro, login, pedidos e mensagens. Atrás do proxy Vercel, limites por IP podem agrupar visitantes; para maior volume, adicionar identificação de cliente autenticada entre os proxies ou rate limiting na borda. Não confiar em headers arbitrários enviados pelo navegador.
+Há limites persistidos para cadastro, login, pedidos e mensagens. Atrás do proxy Vercel, o IP do visitante chega à API pelo header `X-Qalbi-Client-Ip`, aceito só quando `X-Qalbi-Proxy` traz o `PROXY_SECRET` (comparação em tempo constante). Headers enviados diretamente pelo navegador são ignorados.
+
+## Dados pessoais e retenção
+
+| Dado | Onde | Retenção |
+| --- | --- | --- |
+| Nome, email, telefone, hash de senha | `users` | Enquanto a conta existir |
+| Endereço de entrega, ideia do encargo, referência de envio | `orders` | Com o pedido (fins fiscais) |
+| Mensagens e fotos da conversa | `messages`, `media` | Com o pedido; foto enviada e não anexada é apagada em 24 h |
+| Sessões | `sessions` | Até vencer (7–30 dias); apagadas ao vencer |
+| Links de acesso, avisos por email | `access_links`, `notifications` | 7 dias após uso/vencimento; 30 dias após envio |
+| Limites por IP | `rate_limits` | Até vencer (minutos) |
+| Logs da API | Render | Sem corpo, endereço ou cookies; `request_id` e rota com IDs mascarados |
+
+O cliente vê nos pedidos só campos seus: chaves de idempotência, sessão de pagamento e controle de estoque não saem do servidor. Para atender um pedido de exclusão, o operador roda `npm run forget` com `DATABASE_URL` no ambiente: a conta é anonimizada (nome, email, telefone, senha), endereço/ideia/mensagens do cliente são substituídos e fotos, sessões, links e avisos apagados; pedidos e valores ficam para contabilidade. Pedidos pagos em andamento bloqueiam a operação até serem concluídos ou cancelados. Reembolsos e cobranças continuam no Stripe, que tem retenção própria.
 
 ## Limites explícitos desta versão
 
 - EUR e frete fixo por pedido, países permitidos configuráveis; sem cotação por código postal, imposto automático, cupons ou múltiplas moedas.
 - Carrinho mantido na sessão da aba: atualizar ou navegar no site preserva IDs e quantidades. Fechar a aba encerra essa sessão. Ao carregar o catálogo, produtos indisponíveis são removidos e quantidades respeitam o estoque atual. Após criar o pedido, a seleção é limpa; o pedido permanece no banco. Dados pessoais e preços não são gravados nesse armazenamento.
-- Sem recuperação automática de senha ou verificação de email. Cliente autenticado pode trocar senha. Para recuperação, o atelier confirma a identidade pelo canal habitual e gera no pedido um **link de acesso** único (24 h, invalida o anterior); ao usá-lo o cliente define nova senha e todas as sessões antigas caem. Só funciona para contas de cliente. Não há ferramenta pública para assumir conta.
+- Sem recuperação automática de senha ou verificação de email. Cliente autenticado pode trocar senha. Para recuperação, o atelier confirma a identidade pelo canal habitual e gera no pedido um **link de acesso** único (2 h, invalida o anterior); ao usá-lo o cliente define nova senha e todas as sessões antigas caem. Só funciona para contas de cliente. Não há ferramenta pública para assumir conta.
 - Fotos de produtos e da home usam o mesmo upload (reencodado em WebP, guardado no banco), ou URL HTTPS / arquivo em `public/shop/`. Veja `comoadicionarfotos.md`.
 - Catálogo público até 200 produtos, painel de produtos até 500, conta mostra 100 pedidos recentes e admin pagina de 50 em 50. Histórico mostra 100 eventos recentes.
 - Não inclui reembolso pelo painel, anexos além de uma foto por mensagem, ou relatórios fiscais. Emails são apenas avisos; não há confirmação de pedido por email nem verificação de endereço.

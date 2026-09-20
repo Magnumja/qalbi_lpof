@@ -5,6 +5,7 @@ const subjects = {
   quote: (n) => `Tu presupuesto está listo · pedido #${n}`,
   paid: (n) => `Pago confirmado · pedido #${n}`,
   status: (n) => `Tu pedido #${n} avanza`,
+  login: () => 'Nuevo acceso a tu cuenta de Qalbi',
 };
 const bodies = {
   message: 'Hay un mensaje nuevo en la conversación de tu pedido.',
@@ -12,6 +13,8 @@ const bodies = {
     'El atelier ya envió el presupuesto y el plazo. Entra para verlo y, si te encaja, pagar.',
   paid: 'Recibimos tu pago. El atelier empezará a preparar tu pedido.',
   status: 'El estado de tu pedido cambió. Entra para ver el detalle.',
+  login:
+    'Alguien acaba de entrar en tu cuenta. Si fuiste tú, no tienes que hacer nada. Si no, cambia la contraseña desde Mi cuenta o pide un enlace de acceso al atelier.',
 };
 export function createNotifier(pool, config, sender) {
   const enabled = !!(config.RESEND_API_KEY && config.NOTIFY_FROM);
@@ -38,56 +41,64 @@ export function createNotifier(pool, config, sender) {
     await db.query(
       `INSERT INTO notifications(user_id,order_id,kind)
        SELECT u.id,$1,$2 FROM (${recipients}) u
-       WHERE NOT EXISTS (SELECT 1 FROM notifications n WHERE n.user_id=u.id AND n.order_id=$1 AND n.kind=$2 AND n.sent_at IS NULL)`,
+       WHERE NOT EXISTS (SELECT 1 FROM notifications n WHERE n.user_id=u.id AND n.order_id IS NOT DISTINCT FROM $1 AND n.kind=$2 AND n.sent_at IS NULL)`,
       toAdmins ? [order.id, kind] : [order.id, kind, order.user_id],
+    );
+  }
+  // Aviso sem pedido: novo acesso à conta.
+  async function enqueueForUser(db, userId, kind) {
+    if (!enabled) return;
+    await db.query(
+      `INSERT INTO notifications(user_id,kind) SELECT id,$2 FROM users WHERE id=$1 AND email_notifications`,
+      [userId, kind],
     );
   }
   async function deliverPending() {
     if (!enabled) return 0;
-    const client = await pool.connect();
+    // Reserva as linhas e encerra a transação antes de falar com o provedor.
+    const { rows } = await pool.query(
+      `UPDATE notifications n SET claimed_at=now(),attempts=attempts+1
+       FROM (SELECT id FROM notifications WHERE sent_at IS NULL AND attempts<5
+               AND (claimed_at IS NULL OR claimed_at<now()-interval '5 minutes')
+               AND (kind<>'message' OR created_at<now()-interval '2 minutes')
+             ORDER BY created_at LIMIT 20 FOR UPDATE SKIP LOCKED) due
+       WHERE n.id=due.id RETURNING n.id,n.kind,n.user_id,n.order_id`,
+    );
     let delivered = 0;
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query(
-        `SELECT n.id,n.kind,u.email,u.role,o.number,o.id AS order_id FROM notifications n
-         JOIN users u ON u.id=n.user_id JOIN orders o ON o.id=n.order_id
-         WHERE n.sent_at IS NULL AND n.attempts<5
-           AND (n.kind<>'message' OR n.created_at<now()-interval '2 minutes')
-         ORDER BY n.created_at LIMIT 20 FOR UPDATE OF n SKIP LOCKED`,
+    for (const n of rows) {
+      const { rows: people } = await pool.query(
+        'SELECT u.email,u.role,o.number FROM users u LEFT JOIN orders o ON o.id=$2 WHERE u.id=$1',
+        [n.user_id, n.order_id],
       );
-      for (const n of rows) {
-        const path = n.role === 'admin' ? '/admin' : '/cuenta';
-        const link = `${config.FRONTEND_URL}${path}?order=${n.order_id}`;
-        const text =
-          n.role === 'admin'
-            ? `Un cliente escribió en el pedido #${n.number}.\n\n${link}\n\nQalbi Atelier`
-            : `${bodies[n.kind]}\n\n${link}\n\nPuedes desactivar estos avisos en Mi cuenta.\nQalbi Atelier`;
-        try {
-          await send({
-            to: n.email,
-            subject: subjects[n.kind](n.number),
-            text,
-          });
-          await client.query(
-            'UPDATE notifications SET sent_at=now(),attempts=attempts+1,error=NULL WHERE id=$1',
-            [n.id],
-          );
-          delivered++;
-        } catch (error) {
-          await client.query(
-            'UPDATE notifications SET attempts=attempts+1,error=$2 WHERE id=$1',
-            [n.id, String(error.message ?? error).slice(0, 200)],
-          );
-        }
+      const person = people[0];
+      if (!person) continue;
+      const path = person.role === 'admin' ? '/admin' : '/cuenta';
+      const link = n.order_id
+        ? `${config.FRONTEND_URL}${path}?order=${n.order_id}`
+        : `${config.FRONTEND_URL}${path}`;
+      const text =
+        person.role === 'admin'
+          ? `Un cliente escribió en el pedido #${person.number}.\n\n${link}\n\nQalbi Atelier`
+          : `${bodies[n.kind]}\n\n${link}\n\nPuedes desactivar estos avisos en Mi cuenta.\nQalbi Atelier`;
+      try {
+        await send({
+          to: person.email,
+          subject: subjects[n.kind](person.number),
+          text,
+        });
+        await pool.query(
+          'UPDATE notifications SET sent_at=now(),error=NULL WHERE id=$1',
+          [n.id],
+        );
+        delivered++;
+      } catch (error) {
+        await pool.query('UPDATE notifications SET error=$2 WHERE id=$1', [
+          n.id,
+          String(error.message ?? error).slice(0, 200),
+        ]);
       }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
     }
     return delivered;
   }
-  return { enabled, enqueue, deliverPending };
+  return { enabled, enqueue, enqueueForUser, deliverPending };
 }

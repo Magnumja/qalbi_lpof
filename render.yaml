@@ -21,6 +21,8 @@ services:
         sync: false
       - key: SHIPPING_CENTS
         sync: false
+      - key: PROXY_SECRET
+        sync: false
       - key: SHIPPING_COUNTRIES
         value: ES
       # Avisos por email (opcional). Preencha os dois ou nenhum.

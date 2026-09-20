@@ -39,11 +39,36 @@ export function sessionToken(req) {
     ?.split('=')[1];
   return token && /^[a-f0-9]{64}$/.test(token) ? token : null;
 }
-export async function startSession(pool, res, userId, config) {
+// Rótulo curto do aparelho para a lista de sessões; sem fingerprint.
+export function deviceLabel(req) {
+  const ua = String(req.headers['user-agent'] ?? '');
+  const os = /iPhone|iPad/.test(ua)
+    ? 'iPhone/iPad'
+    : /Android/.test(ua)
+      ? 'Android'
+      : /Mac OS/.test(ua)
+        ? 'Mac'
+        : /Windows/.test(ua)
+          ? 'Windows'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : 'Dispositivo';
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /Firefox\//.test(ua)
+      ? 'Firefox'
+      : /Chrome\//.test(ua)
+        ? 'Chrome'
+        : /Safari\//.test(ua)
+          ? 'Safari'
+          : 'navegador';
+  return `${os} · ${browser}`;
+}
+export async function startSession(pool, res, userId, config, req) {
   const token = randomBytes(32).toString('hex');
   await pool.query(
-    "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '7 days')",
-    [tokenHash(token), userId],
+    "INSERT INTO sessions(token_hash,user_id,expires_at,label) VALUES($1,$2,now()+interval '7 days',$3)",
+    [tokenHash(token), userId, req ? deviceLabel(req) : ''],
   );
   res.cookie('qalbi_session', token, {
     httpOnly: true,
@@ -57,8 +82,11 @@ export function authenticate(pool) {
   return async (req, _res, next) => {
     const token = sessionToken(req);
     if (!token) throw new HttpError(401, 'Inicia sesión para continuar.');
+    // Uso renova a sessão por 7 dias, até 30 dias desde o início.
     const { rows } = await pool.query(
-      'SELECT u.id,u.name,u.email,u.phone,u.role,u.email_notifications FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',
+      `UPDATE sessions s SET last_seen_at=now(),expires_at=LEAST(now()+interval '7 days',s.created_at+interval '30 days')
+       FROM users u WHERE u.id=s.user_id AND s.token_hash=$1 AND s.expires_at>now()
+       RETURNING u.id,u.name,u.email,u.phone,u.role,u.email_notifications`,
       [tokenHash(token)],
     );
     if (!rows[0])
@@ -82,4 +110,29 @@ export async function rateLimit(pool, key, limit = 30, seconds = 900) {
   );
   if (rows[0].hits > limit)
     throw new HttpError(429, 'Demasiados intentos. Espera unos minutos.');
+}
+
+// Senha exposta em vazamentos conhecidos (k-anonymity: só 5 caracteres do hash saem).
+// Falha aberta: se o serviço não responder, o cadastro segue.
+export async function pwnedPassword(password) {
+  const digest = createHash('sha1')
+    .update(password)
+    .digest('hex')
+    .toUpperCase();
+  try {
+    const response = await fetch(
+      `https://api.pwnedpasswords.com/range/${digest.slice(0, 5)}`,
+      {
+        headers: { 'Add-Padding': 'true', 'User-Agent': 'qalbi-atelier' },
+        signal: AbortSignal.timeout(3000),
+      },
+    );
+    if (!response.ok) return false;
+    const suffix = digest.slice(5);
+    return (await response.text())
+      .split('\n')
+      .some((line) => line.startsWith(suffix) && !line.trim().endsWith(':0'));
+  } catch {
+    return false;
+  }
 }

@@ -12,6 +12,7 @@ export function readConfig(env = process.env) {
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     SHIPPING_CENTS: z.coerce.number().int().min(0).max(100000).default(0),
     SHIPPING_COUNTRIES: z.string().default('ES'),
+    PROXY_SECRET: z.string().min(16).optional(),
     RESEND_API_KEY: z.string().optional(),
     NOTIFY_FROM: z.string().optional(),
   });
@@ -21,6 +22,10 @@ export function readConfig(env = process.env) {
       'Configure DATABASE_URL e FRONTEND_URL no ambiente do backend.',
     );
   const config = result.data;
+  if (config.NODE_ENV === 'production' && !config.PROXY_SECRET)
+    throw new Error(
+      'Defina PROXY_SECRET (mínimo 16 caracteres) igual na Vercel e no Render.',
+    );
   if (config.NODE_ENV === 'production' && env.SHIPPING_CENTS === undefined)
     throw new Error(
       'Defina SHIPPING_CENTS explicitamente; use 0 apenas para envio grátis.',

@@ -72,7 +72,7 @@ Objetivo: em cada tela, a pessoa deve saber **o que fazer a seguir** e **como fa
 | --- | --- | --- | --- |
 | Alta | Painel · pedido | O atelier via nome do cliente, mas não email nem telefone; para combinar detalhes fora do chat precisava consultar o banco | Bloco **Cliente** com email (mailto) e WhatsApp com mensagem pronta citando o pedido |
 | Alta | Conta · lista / Painel · lista | Ninguém sabia que havia mensagem nova sem abrir cada pedido | Contador de mensagens novas por pessoa (`order_reads`), selo por pedido, resumo no topo da conta e indicador "Conversaciones con mensajes nuevos" no painel |
-| Alta | Login · cliente | Esqueceu a senha → dependia de intervenção técnica | Atelier gera **link de acesso** único (24 h) a partir do pedido, com copiar e enviar por WhatsApp; `/cuenta?acceso=…` pede nova senha e entra, revogando sessões antigas |
+| Alta | Login · cliente | Esqueceu a senha → dependia de intervenção técnica | Atelier gera **link de acesso** único (2 h) a partir do pedido, com copiar e enviar por WhatsApp; `/cuenta?acceso=…` pede nova senha e entra, revogando sessões antigas |
 | Média | Conta · pedido | Chat era o único canal; sem alternativa quando o cliente prefere WhatsApp | Link "Escribe al atelier" com o número do pedido na mensagem |
 | Média | Painel · produtos | Foto exigia URL ou arquivo em `public/shop/`; fluxo diferente do editor da home | Mesmo `PhotoField` da home: upload otimizado, prévia, placeholder quando vazio |
 | Baixa | Conta · link expirado | Texto mandava "pedir na conversa", mas quem perdeu a senha não acessa a conversa | Link direto de WhatsApp para pedir outro |
@@ -94,3 +94,20 @@ Comportamento a conhecer: conversas antigas contam como "novas" até serem abert
 Também na mesma data (Fases 1, 3, 4 e 5 do plano): avisos por email com fila, agrupamento e opt-out; link compartilhável e botão "Compartir" nas peças; foto na conversa com acesso restrito aos participantes; reembolso/disputa refletidos do Stripe; log JSON por requisição; `npm run db:test`; suíte Playwright com 5 jornadas em 390 px (`npm run test:e2e`). Total: 9 testes de conteúdo/proxy, 23 de API, 5 no navegador.
 
 Resolvidas na mesma data (Fase 2 do plano): indicadores do painel viram filtros (`?filter=`), lista ordenada por "precisa do atelier" e formulários de orçamento/avanço movidos para logo após "Tu idea" (captura em 390 px: ação visível na segunda tela em vez da quarta). Teste de API cobre filtro, ordenação e filtro inválido; 20 testes de API no total.
+
+## Revisão de segurança, vazamento e bugs (20/09/2026)
+
+| Prioridade | Achado | Resolução |
+| --- | --- | --- |
+| Alta | Atrás do proxy Vercel todos os visitantes contavam como um IP: um abusador esgotava cadastro e login para todos | `PROXY_SECRET` obrigatório em produção; o proxy envia o IP com o segredo e a API só confia assim (teste com/sem segredo) |
+| Alta | Token do link de acesso ficava no histórico do navegador por 24 h | Removido da URL ao carregar; validade reduzida para 2 h |
+| Média | Erros do parser JSON/tamanho expunham texto interno | Só `HttpError` e Zod devolvem mensagem; demais 4xx recebem texto neutro |
+| Média | Entrega de avisos segurava transação e locks durante chamadas HTTP | Reserva (`claimed_at`) e commit antes do envio; nova tentativa após 5 min |
+| Média | `access_links`, `notifications` e fotos órfãs cresciam sem limite | Retenção horária em `pruneExpiredRecords` |
+| Média | Cliente recebia `request_hash`, `checkout_url`, `checkout_id`, controle de estoque | Projeção `publicOrder` nas rotas do cliente |
+| Média | Sem CSP; sessão fixa sem visibilidade | CSP em `vercel.json`; sessões com rótulo, renovação por uso, "Cerrar las demás sesiones", aviso de novo acesso |
+| Média | Cadastro confirmava existência do email | Mensagem neutra (limite por identificador já existia) |
+| Baixa | Senhas vazadas aceitas; sem `X-Request-Id` no navegador; polling insistia após 401 | HIBP k-anonymity com falha aberta; id de requisição repassado e mostrado em erros 5xx; polling redireciona ao login |
+| Baixa | Sem processo de exclusão de dados nem atualização de dependências | `npm run forget` (anonimização testada) e Dependabot semanal |
+
+Evidência: 10 testes de conteúdo/proxy, 28 de API, 5 jornadas no navegador; formatação, tipos e build sem erros. Não substitui pentest externo; `PROXY_SECRET` e a CSP só atuam quando publicados.

@@ -4,6 +4,7 @@ import type { Order, User } from './types';
 import OrderPanel from './OrderPanel';
 import ContactSettings from './ContactSettings';
 import NotificationSettings from './NotificationSettings';
+import SessionSettings from './SessionSettings';
 import AdminProducts from './AdminProducts';
 import AdminHome from '../home/AdminHome';
 export default function Account({
@@ -346,6 +347,7 @@ export default function Account({
       )}
       {!admin && <ContactSettings user={user} />}
       {!admin && notificationsEnabled && <NotificationSettings user={user} />}
+      {!admin && <SessionSettings />}
     </>
   );
 }

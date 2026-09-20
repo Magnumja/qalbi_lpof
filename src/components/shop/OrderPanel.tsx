@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, date, money, statusLabel } from './api';
+import { api, ApiError, date, money, statusLabel } from './api';
 import type { OrderDetail } from './types';
 import { orderContactUrl, whatsappUrl } from '../../content/site';
 import AccessLinkPanel from './AccessLinkPanel';
@@ -30,18 +30,28 @@ export default function OrderPanel({
       if (document.hidden) return;
       try {
         const data = await api<OrderDetail>(`/orders/${id}`);
-        if (active) setDetail(data);
+        if (active) {
+          setDetail(data);
+          setError('');
+        }
       } catch (err) {
-        if (active) setError((err as Error).message);
+        if (!active) return;
+        // Sessão expirada durante a leitura: volta ao acesso em vez de insistir.
+        if (err instanceof ApiError && err.status === 401) {
+          clearInterval(timer);
+          window.location.assign(admin ? '/admin/login' : '/cuenta');
+          return;
+        }
+        setError((err as Error).message);
       }
     };
-    void load();
     const timer = setInterval(() => void load(), 10000);
+    void load();
     return () => {
       active = false;
       clearInterval(timer);
     };
-  }, [id]);
+  }, [id, admin]);
   async function action(path: string, body?: unknown, method = 'POST') {
     setBusy(true);
     setError('');

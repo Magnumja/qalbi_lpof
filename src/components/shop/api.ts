@@ -31,11 +31,14 @@ export async function api<T>(
       response.status,
     );
   });
-  if (!response.ok)
+  if (!response.ok) {
+    const requestId = response.headers.get('x-request-id');
     throw new ApiError(
-      data.error ?? 'No se pudo completar la operación.',
+      (data.error ?? 'No se pudo completar la operación.') +
+        (response.status >= 500 && requestId ? ` (código ${requestId})` : ''),
       response.status,
     );
+  }
   return data;
 }
 export const money = (cents: number) =>
