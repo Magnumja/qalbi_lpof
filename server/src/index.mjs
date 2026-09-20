@@ -22,6 +22,14 @@ const cleanup = setInterval(
   3600000,
 );
 cleanup.unref();
+const notifications = setInterval(
+  () =>
+    app.locals.notifier
+      .deliverPending()
+      .catch(() => console.error('Falha no envio de avisos.')),
+  60000,
+);
+notifications.unref();
 const reservations = setInterval(
   () =>
     expireUnstartedOrders(pool).catch(() =>
@@ -34,6 +42,7 @@ for (const signal of ['SIGTERM', 'SIGINT'])
   process.on(signal, () => {
     clearInterval(cleanup);
     clearInterval(reservations);
+    clearInterval(notifications);
     server.close(() => pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10000).unref();
   });

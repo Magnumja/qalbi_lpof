@@ -12,6 +12,8 @@ export function readConfig(env = process.env) {
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     SHIPPING_CENTS: z.coerce.number().int().min(0).max(100000).default(0),
     SHIPPING_COUNTRIES: z.string().default('ES'),
+    RESEND_API_KEY: z.string().optional(),
+    NOTIFY_FROM: z.string().optional(),
   });
   const result = schema.safeParse(env);
   if (!result.success)
@@ -25,6 +27,8 @@ export function readConfig(env = process.env) {
     );
   if (!!config.STRIPE_SECRET_KEY !== !!config.STRIPE_WEBHOOK_SECRET)
     throw new Error('Configure as duas chaves Stripe: API e webhook.');
+  if (!!config.RESEND_API_KEY !== !!config.NOTIFY_FROM)
+    throw new Error('Configure RESEND_API_KEY e NOTIFY_FROM juntos.');
   config.FRONTEND_URL = new URL(config.FRONTEND_URL).origin;
   if (
     config.NODE_ENV === 'production' &&

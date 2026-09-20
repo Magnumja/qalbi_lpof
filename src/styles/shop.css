@@ -367,6 +367,27 @@
   overflow-wrap: anywhere;
   margin: 0.4rem 0;
 }
+.chat-photo {
+  display: block;
+  max-width: min(100%, 260px);
+  height: auto;
+  border-radius: 8px;
+  margin: 0.4rem 0;
+}
+.chat-attachment {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+}
+.chat-attach {
+  display: block;
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+}
+.chat-attach input {
+  display: block;
+  margin-top: 0.3rem;
+}
 .chat-message time {
   font-size: 0.65rem;
   color: var(--ink);
@@ -473,13 +494,22 @@
   gap: 1rem;
   margin: 1rem 0 2rem;
 }
-.admin-stats > div {
+.admin-stats > button {
   padding: 1.5rem;
   background: #e2e7d7;
   border-radius: 8px;
+  text-align: left;
+  border: 2px solid transparent;
+  cursor: pointer;
 }
-.admin-stats > div:nth-child(4) {
+.admin-stats > button:nth-child(4) {
   background: #eddee3;
+}
+.admin-stats > button[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+.admin-filter-note {
+  margin: 0 0 1rem;
 }
 .admin-stats strong {
   display: block;
@@ -657,7 +687,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
-  .admin-stats > div {
+  .admin-stats > button {
     padding: 1rem 0.7rem;
   }
   .admin-stats strong {

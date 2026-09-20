@@ -88,7 +88,9 @@ Comportamento a conhecer: conversas antigas contam como "novas" até serem abert
 
 ### Observações não resolvidas (próximas)
 
-1. **Aviso fora do site:** o contador só aparece ao entrar. Email/WhatsApp automático quando há orçamento ou resposta continua sendo a maior melhoria de proximidade; exige provedor externo.
-2. **Pedido no celular (painel):** o formulário de orçamento fica após Cliente e Entrega; em 390 px são ~2 telas de rolagem até a ação principal. Avaliar mover "Preparar presupuesto" logo abaixo de "Tu idea" quando o status for `requested`.
-3. **Lista do painel sem filtro:** com dezenas de pedidos, "os que precisam de mim" (por orçar, mensagem nova, prazo vencido) deveriam ser filtráveis a partir dos indicadores.
-4. **Teste em telefone físico e leitor de tela** seguem pendentes; as capturas são de navegador headless.
+1. **Teste em telefone físico e leitor de tela** seguem pendentes; as capturas são de navegador headless.
+2. **Avisos por email** estão implementados mas dependem de `RESEND_API_KEY`/`NOTIFY_FROM` e de domínio com SPF/DKIM; sem isso o contador na conta é o único aviso.
+
+Também na mesma data (Fases 1, 3, 4 e 5 do plano): avisos por email com fila, agrupamento e opt-out; link compartilhável e botão "Compartir" nas peças; foto na conversa com acesso restrito aos participantes; reembolso/disputa refletidos do Stripe; log JSON por requisição; `npm run db:test`; suíte Playwright com 5 jornadas em 390 px (`npm run test:e2e`). Total: 9 testes de conteúdo/proxy, 23 de API, 5 no navegador.
+
+Resolvidas na mesma data (Fase 2 do plano): indicadores do painel viram filtros (`?filter=`), lista ordenada por "precisa do atelier" e formulários de orçamento/avanço movidos para logo após "Tu idea" (captura em 390 px: ação visível na segunda tela em vez da quarta). Teste de API cobre filtro, ordenação e filtro inválido; 20 testes de API no total.

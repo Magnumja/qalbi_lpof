@@ -99,7 +99,11 @@ export default function ShopApp({
           custom={mode === 'custom'}
         />
       ) : user ? (
-        <Account user={user} paymentEnabled={shop?.payment_enabled ?? false} />
+        <Account
+          user={user}
+          paymentEnabled={shop?.payment_enabled ?? false}
+          notificationsEnabled={shop?.notifications_enabled ?? false}
+        />
       ) : accessToken ? (
         <AccessLinkForm token={accessToken} onLogin={setUser} />
       ) : (

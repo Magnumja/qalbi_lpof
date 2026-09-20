@@ -2,13 +2,13 @@
 
 ## Fluxos
 
-**Peça do catálogo:** cliente cria conta, escolhe peças e endereço, confirma pedido, paga pelo Checkout Stripe e acompanha a preparação. O servidor recalcula o total. Peças prontas reservam estoque na criação do pedido. Peças sob encomenda usam prazo cadastrado e não descontam estoque físico.
+**Peça do catálogo:** `/tienda?pieza=ID` abre os detalhes de uma peça (botão "Compartir esta pieza" usa o compartilhamento do sistema ou copia o link); peça despublicada mostra aviso. Cliente cria conta, escolhe peças e endereço, confirma pedido, paga pelo Checkout Stripe e acompanha a preparação. O servidor recalcula o total. Peças prontas reservam estoque na criação do pedido. Peças sob encomenda usam prazo cadastrado e não descontam estoque físico.
 
 **Peça personalizada:** cliente descreve a ideia e endereço, administrador conversa pelo pedido e envia orçamento com valor final (incluindo frete) e data. Só então o cliente pode pagar. O prazo do orçamento é uma data definida pelo atelier; confirme se continua adequado antes de receber um pagamento tardio.
 
-**Produção:** depois da confirmação de pagamento, o admin avança uma etapa por vez: confirmado → em preparação → pronto → enviado → concluído. Pode ajustar prazo e referência de envio. Todas as mudanças relevantes ficam no histórico. Os indicadores mostram pedidos para orçar, em preparação e com prazo vencido.
+**Produção:** depois da confirmação de pagamento, o admin avança uma etapa por vez: confirmado → em preparação → pronto → enviado → concluído. Pode ajustar prazo e referência de envio. Todas as mudanças relevantes ficam no histórico. Os indicadores do painel (por orçar, pendentes de pagamento, em preparação, prazo a revisar, conversas com mensagens novas) funcionam como filtros: tocar um mostra só esses pedidos; a lista padrão ordena primeiro encomendas por orçar, depois conversas com novidades, depois prazos vencidos.
 
-**Conversa:** somente dono do pedido e administradores podem ler/enviar mensagens. Últimas 200 mensagens são exibidas, com atualização a cada 10 segundos em aba visível. O banco mantém as anteriores. Abrir o pedido ou enviar mensagem registra a leitura por pessoa (`order_reads`); as listas mostram quantas mensagens do outro lado chegaram desde então e o painel conta as conversas com novidades. Não há anexos, aviso por email ou notificações push. O painel mostra email e telefone do cliente com atalho de WhatsApp; o cliente tem atalho equivalente para o atelier.
+**Conversa:** somente dono do pedido e administradores podem ler/enviar mensagens. Últimas 200 mensagens são exibidas, com atualização a cada 10 segundos em aba visível. O banco mantém as anteriores. Abrir o pedido ou enviar mensagem registra a leitura por pessoa (`order_reads`); as listas mostram quantas mensagens do outro lado chegaram desde então e o painel conta as conversas com novidades. Cada mensagem pode levar **uma foto** (JPG/PNG/WebP, reduzida no navegador e reencodada em WebP até 500 KB, guardada no banco ligada ao pedido; 10 fotos por pessoa por hora). Só participantes do pedido veem a foto (`/api/media/:id` exige sessão quando a mídia pertence a um pedido; cache privado). Fotos de conversa ficam no PostgreSQL: com volume, defina retenção ou mova para um storage antes de abrir a muitos clientes. Não há notificações push. Com `RESEND_API_KEY` e `NOTIFY_FROM` configurados, a API envia avisos por email (sem o conteúdo da mensagem): ao cliente quando há orçamento, resposta do atelier, pagamento confirmado ou avanço de estado; aos administradores quando um cliente escreve. Mensagens são agrupadas — um aviso pendente por pessoa e pedido cobre as seguintes, entregue após 2 minutos pela manutenção da API (a cada 60 s, até 5 tentativas, erro registrado em `notifications.error`). O cliente pode desligar em **Avisos por email**; sem provedor configurado, nada é enfileirado e a opção não aparece. O painel mostra email e telefone do cliente com atalho de WhatsApp; o cliente tem atalho equivalente para o atelier.
 
 ## Estoque e pagamentos
 
@@ -20,7 +20,7 @@
 - Falha de rede pode deixar pagamento `pending` sem ID local. Não liberamos estoque nesse caso, porque uma sessão pode existir no Stripe. Repita o botão de pagamento para recuperar pela chave idempotente dentro da janela permitida. Se necessário, copie a sessão `cs_...` do Stripe e reconcilie no painel.
 - Se não existir sessão no Stripe e a janela de recuperação já terminou, é necessária intervenção técnica: primeiro confirmar ausência de sessão/cobrança no provedor, depois liberar a reserva em transação. Não há liberação automática de um pagamento incerto.
 - Cancelar pedido não pago encerra a sessão no Stripe antes de liberar estoque. Pedido pago não pode ser cancelado por esse atalho.
-- Reembolsos e disputas são tratados no Stripe nesta versão. Eles **não sincronizam automaticamente** para o painel; registre atendimento e ajuste operacional com suporte técnico. Não lançar vendas que dependam de um processo de reembolso automático sem implementar essa integração.
+- Reembolsos e disputas são feitos no Stripe (o pedido tem o atalho "Ver pago en Stripe"). Os eventos `charge.refunded` e `charge.dispute.created` do webhook refletem o estado: reembolso completo marca o pagamento como reembolsado; parcial e disputa entram no histórico. Estoque não é devolvido automaticamente; decida na conversa e ajuste o produto. Inclua esses dois eventos no destino do webhook.
 
 ## Dados e acesso
 
@@ -39,7 +39,7 @@ Há limites persistidos para cadastro, login, pedidos e mensagens. Atrás do pro
 - Sem recuperação automática de senha ou verificação de email. Cliente autenticado pode trocar senha. Para recuperação, o atelier confirma a identidade pelo canal habitual e gera no pedido um **link de acesso** único (24 h, invalida o anterior); ao usá-lo o cliente define nova senha e todas as sessões antigas caem. Só funciona para contas de cliente. Não há ferramenta pública para assumir conta.
 - Fotos de produtos e da home usam o mesmo upload (reencodado em WebP, guardado no banco), ou URL HTTPS / arquivo em `public/shop/`. Veja `comoadicionarfotos.md`.
 - Catálogo público até 200 produtos, painel de produtos até 500, conta mostra 100 pedidos recentes e admin pagina de 50 em 50. Histórico mostra 100 eventos recentes.
-- Não inclui reembolso no painel, sincronização de disputas, emails transacionais, anexos ou relatórios fiscais.
+- Não inclui reembolso pelo painel, anexos além de uma foto por mensagem, ou relatórios fiscais. Emails são apenas avisos; não há confirmação de pedido por email nem verificação de endereço.
 - Não houve homologação em conta Stripe, Neon, Render ou Vercel. Testes locais usam PostgreSQL real e provedor de pagamento simulado.
 
 ## Verificações feitas

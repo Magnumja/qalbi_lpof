@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Product } from './types';
 import { money } from './api';
 export default function ProductDetails({
@@ -9,9 +9,29 @@ export default function ProductDetails({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [shared, setShared] = useState('');
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
+  // Endereço estável da peça: abre a loja com estes detalhes já visíveis.
+  const link = `${window.location.origin}/tienda?pieza=${product.id}`;
+  async function share() {
+    const data = {
+      title: product.title,
+      text: `${product.title} · Qalbi Atelier`,
+      url: link,
+    };
+    try {
+      if (navigator.share && navigator.canShare?.(data)) {
+        await navigator.share(data);
+        return;
+      }
+      await navigator.clipboard.writeText(link);
+      setShared('Enlace copiado.');
+    } catch {
+      setShared(link);
+    }
+  }
   return (
     <dialog
       ref={dialog}
@@ -41,6 +61,12 @@ export default function ProductDetails({
       <p className="shop-muted">
         El tiempo de transporte se suma a la preparación. Cierra esta ventana
         para añadir la pieza a tu selección.
+      </p>
+      <button className="shop-text-button" type="button" onClick={share}>
+        Compartir esta pieza ↗
+      </button>
+      <p role="status" className="shop-muted">
+        {shared}
       </p>
     </dialog>
   );

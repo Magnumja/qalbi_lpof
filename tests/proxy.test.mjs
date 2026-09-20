@@ -28,7 +28,12 @@ test('proxy Vercel preserva bytes da foto e mantém respostas privadas sem cache
     globalThis,
     'fetch',
     async () =>
-      new Response(bytes, { headers: { 'content-type': 'image/webp' } }),
+      new Response(bytes, {
+        headers: {
+          'content-type': 'image/webp',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+      }),
   );
   const image = makeRes();
   await handler(
@@ -42,6 +47,28 @@ test('proxy Vercel preserva bytes da foto e mantém respostas privadas sem cache
   assert.deepEqual(image.body, bytes);
   assert.equal(image.headers['Content-Type'], 'image/webp');
   assert.match(image.headers['Cache-Control'], /immutable/);
+  // Foto de conversa: o cache privado da API é respeitado, nunca público.
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(bytes, {
+        headers: {
+          'content-type': 'image/webp',
+          'cache-control': 'private, max-age=3600',
+        },
+      }),
+  );
+  const privateImage = makeRes();
+  await handler(
+    {
+      url: '/api/media/22222222-2222-4222-8222-222222222222',
+      method: 'GET',
+      headers: {},
+    },
+    privateImage,
+  );
+  assert.equal(privateImage.headers['Cache-Control'], 'private, max-age=3600');
   t.mock.method(
     globalThis,
     'fetch',

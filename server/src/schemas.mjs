@@ -101,9 +101,15 @@ export const progressSchema = z.object({
   due_at: z.iso.date().nullable(),
   tracking: z.string().trim().max(300).default(''),
 });
-export const messageSchema = z.object({
-  body: z.string().trim().min(1).max(4000),
-});
+export const messageSchema = z
+  .object({
+    body: z.string().trim().max(4000).default(''),
+    media_id: uuid.optional(),
+  })
+  .refine(
+    (m) => m.body.length > 0 || m.media_id,
+    'Escribe algo o adjunta una foto.',
+  );
 export const accessLinkSchema = z.object({
   token: z.string().regex(/^[a-f0-9]{64}$/),
   password: z.string().min(12).max(128),

@@ -2,6 +2,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import Stripe from 'stripe';
+import sharp from 'sharp';
 import { createPool } from '../src/db.mjs';
 import { migrate } from '../src/migrate.mjs';
 import { createApp } from '../src/app.mjs';
@@ -135,7 +136,7 @@ async function webhook(event) {
 before(async () => {
   await migrate(pool);
   await pool.query(
-    'TRUNCATE users,products,sessions,orders,order_items,messages,order_events,order_reads,access_links,stripe_events,rate_limits RESTART IDENTITY CASCADE',
+    'TRUNCATE users,products,sessions,orders,order_items,messages,order_events,order_reads,access_links,notifications,stripe_events,rate_limits RESTART IDENTITY CASCADE',
   );
   const app = createApp(
     pool,
@@ -972,4 +973,341 @@ test('produto aceita foto subida pelo painel', async () => {
     ).status,
     400,
   );
+});
+test('painel filtra e ordena primeiro o que precisa do atelier', async () => {
+  const dana = await register('Dana'),
+    p = await product();
+  const custom = (
+    await call(
+      '/api/orders/custom',
+      'POST',
+      {
+        request_key: randomUUID(),
+        address,
+        brief: 'Encomenda de teste com detalhes suficientes para o pedido.',
+      },
+      dana.cookie,
+    )
+  ).data.order;
+  const shop = (await order(dana, p)).data.order;
+  await call(
+    `/api/orders/${shop.id}/messages`,
+    'POST',
+    { body: '¿Cuándo llega?' },
+    dana.cookie,
+  );
+  const list = async (filter) =>
+    (
+      await call(
+        `/api/admin/orders?filter=${filter}`,
+        'GET',
+        undefined,
+        admin.cookie,
+      )
+    ).data.orders;
+  const all = await list('all');
+  // Encomenda por orçar vem antes; depois a conversa com mensagem nova.
+  assert.equal(all[0].id, custom.id);
+  assert.equal(all[1].id, shop.id);
+  assert.ok((await list('requested')).every((o) => o.status === 'requested'));
+  assert.ok((await list('unread')).every((o) => o.unread_count > 0));
+  assert.ok((await list('unread')).some((o) => o.id === shop.id));
+  assert.equal(
+    (
+      await call(
+        '/api/admin/orders?filter=drop',
+        'GET',
+        undefined,
+        admin.cookie,
+      )
+    ).status,
+    400,
+  );
+  await call(`/api/orders/${shop.id}/cancel`, 'POST', {}, dana.cookie);
+  await call(`/api/orders/${custom.id}/cancel`, 'POST', {}, dana.cookie);
+});
+test('reembolso e disputa no Stripe refletem no pedido sem alterar estoque', async () => {
+  const erin = await register('Erin'),
+    p = await product(),
+    o = (await order(erin, p)).data.order;
+  await call(`/api/orders/${o.id}/checkout`, 'POST', {}, erin.cookie);
+  const session = sessions.get(`qalbi-checkout-${o.id}`);
+  assert.equal(
+    await webhook({
+      id: `evt_${randomUUID()}`,
+      type: 'checkout.session.completed',
+      data: {
+        object: { ...session, payment_status: 'paid', status: 'complete' },
+      },
+    }),
+    200,
+  );
+  const charge = (extra) => ({
+    id: `evt_${randomUUID()}`,
+    type: 'charge.refunded',
+    data: {
+      object: {
+        id: `ch_${randomUUID()}`,
+        payment_intent: session.payment_intent,
+        currency: 'eur',
+        ...extra,
+      },
+    },
+  });
+  assert.equal(
+    await webhook(charge({ refunded: false, amount_refunded: 500 })),
+    200,
+  );
+  let detail = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, erin.cookie)
+  ).data;
+  assert.equal(detail.order.payment_status, 'paid');
+  assert.ok(
+    detail.events.some((e) => e.description.startsWith('Reembolso parcial')),
+  );
+  assert.equal(
+    await webhook({
+      id: `evt_${randomUUID()}`,
+      type: 'charge.dispute.created',
+      data: { object: { payment_intent: session.payment_intent } },
+    }),
+    200,
+  );
+  assert.equal(
+    await webhook(charge({ refunded: true, amount_refunded: 3000 })),
+    200,
+  );
+  detail = (await call(`/api/orders/${o.id}`, 'GET', undefined, erin.cookie))
+    .data;
+  assert.equal(detail.order.payment_status, 'refunded');
+  assert.ok(detail.events.some((e) => e.description.startsWith('Disputa')));
+  // Pagamento desconhecido é ignorado sem erro; estoque não muda.
+  assert.equal(
+    await webhook(charge({ payment_intent: 'pi_unknown', refunded: true })),
+    200,
+  );
+  const stock = (
+    await pool.query('SELECT stock FROM products WHERE id=$1', [p.id])
+  ).rows[0].stock;
+  assert.equal(stock, 4);
+});
+test('avisos por email: fila por evento, agrupamento de mensagens, opt-out e reenvio', async () => {
+  const sent = [];
+  let fail = false;
+  const notifying = createApp(
+    pool,
+    {
+      FRONTEND_URL: origin,
+      NODE_ENV: 'test',
+      SHIPPING_CENTS: 500,
+      countries: ['ES'],
+      STRIPE_WEBHOOK_SECRET: webhookSecret,
+      RESEND_API_KEY: 'local-test-only',
+      NOTIFY_FROM: 'Qalbi <avisos@example.test>',
+    },
+    fakeStripe,
+    async (mail) => {
+      if (fail) throw new Error('resend_500');
+      sent.push(mail);
+    },
+  );
+  const server2 = notifying.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server2.once('listening', resolve));
+  const base2 = `http://127.0.0.1:${server2.address().port}`;
+  const call2 = async (path, method = 'GET', body, cookie) => {
+    const res = await fetch(base2 + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+        ...(cookie ? { cookie } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: res.status, data: await res.json() };
+  };
+  const notifier = notifying.locals.notifier;
+  const pending = async () =>
+    (
+      await pool.query(
+        'SELECT kind FROM notifications WHERE sent_at IS NULL ORDER BY created_at',
+      )
+    ).rows.map((r) => r.kind);
+  try {
+    assert.equal((await call2('/api/shop')).data.notifications_enabled, true);
+    assert.equal((await call('/api/shop')).data.notifications_enabled, false);
+    const fay = await register('Fay');
+    const custom = (
+      await call2(
+        '/api/orders/custom',
+        'POST',
+        {
+          request_key: randomUUID(),
+          address,
+          brief: 'Encomenda para testar os avisos por email do atelier.',
+        },
+        fay.cookie,
+      )
+    ).data.order;
+    // Duas mensagens do cliente geram um único aviso pendente por administrador.
+    const admins = (
+      await pool.query(
+        "SELECT count(*)::int AS n FROM users WHERE role='admin'",
+      )
+    ).rows[0].n;
+    for (const body of ['Hola', '¿Sigues ahí?'])
+      await call2(
+        `/api/orders/${custom.id}/messages`,
+        'POST',
+        { body },
+        fay.cookie,
+      );
+    assert.deepEqual(await pending(), Array(admins).fill('message'));
+    // Mensagem recente ainda não é entregue (janela de agrupamento).
+    assert.equal(await notifier.deliverPending(), 0);
+    await pool.query(
+      "UPDATE notifications SET created_at=now()-interval '3 minutes'",
+    );
+    assert.equal(await notifier.deliverPending(), admins);
+    assert.ok(sent.some((m) => m.to === 'admin@example.test'));
+    assert.match(sent[0].text, new RegExp(`/admin\\?order=${custom.id}`));
+    await call2(
+      `/api/admin/orders/${custom.id}/quote`,
+      'POST',
+      { total_cents: 4000, due_at: '2030-01-01' },
+      admin.cookie,
+    );
+    assert.deepEqual(await pending(), ['quote']);
+    assert.equal(await notifier.deliverPending(), 1);
+    assert.equal(sent.at(-1).to, 'fay@example.test');
+    assert.match(sent.at(-1).subject, /presupuesto/);
+    assert.match(sent.at(-1).text, new RegExp(`/cuenta\\?order=${custom.id}`));
+    // Falha do provedor conta tentativa e mantém pendente.
+    await call2(
+      `/api/orders/${custom.id}/messages`,
+      'POST',
+      { body: 'Te enseño una muestra.' },
+      admin.cookie,
+    );
+    await pool.query(
+      "UPDATE notifications SET created_at=now()-interval '3 minutes'",
+    );
+    fail = true;
+    assert.equal(await notifier.deliverPending(), 0);
+    const failed = (
+      await pool.query(
+        'SELECT attempts,error FROM notifications WHERE sent_at IS NULL',
+      )
+    ).rows[0];
+    assert.equal(failed.attempts, 1);
+    assert.equal(failed.error, 'resend_500');
+    fail = false;
+    assert.equal(await notifier.deliverPending(), 1);
+    // Cliente desliga os avisos: nada é enfileirado para ele.
+    assert.equal(
+      (
+        await call2(
+          '/api/auth/notifications',
+          'PUT',
+          { enabled: false },
+          fay.cookie,
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await call2('/api/auth/me', 'GET', undefined, fay.cookie)).data.user
+        .email_notifications,
+      false,
+    );
+    await call2(
+      `/api/orders/${custom.id}/messages`,
+      'POST',
+      { body: 'Otra muestra.' },
+      admin.cookie,
+    );
+    assert.deepEqual(await pending(), []);
+    // Sem provedor configurado, nada é enfileirado.
+    await call(
+      `/api/orders/${custom.id}/messages`,
+      'POST',
+      { body: 'Sin proveedor' },
+      fay.cookie,
+    );
+    assert.deepEqual(await pending(), []);
+    await call2(`/api/orders/${custom.id}/cancel`, 'POST', {}, fay.cookie);
+  } finally {
+    await new Promise((resolve) => server2.close(resolve));
+  }
+});
+test('foto na conversa: só participantes enviam e veem; mensagem só com foto é válida', async () => {
+  const gil = await register('Gil'),
+    p = await product(),
+    o = (await order(gil, p)).data.order;
+  const png = (
+    await sharp({
+      create: { width: 8, height: 8, channels: 3, background: '#a0b080' },
+    })
+      .png()
+      .toBuffer()
+  ).toString('base64');
+  assert.equal(
+    (
+      await call(
+        `/api/orders/${o.id}/photos`,
+        'POST',
+        { data: png },
+        bob.cookie,
+      )
+    ).status,
+    404,
+  );
+  const photo = await call(
+    `/api/orders/${o.id}/photos`,
+    'POST',
+    { data: png },
+    gil.cookie,
+  );
+  assert.equal(photo.status, 201);
+  assert.equal(
+    (await call(`/api/orders/${o.id}/messages`, 'POST', {}, gil.cookie)).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call(
+        `/api/orders/${o.id}/messages`,
+        'POST',
+        { media_id: photo.data.media_id },
+        gil.cookie,
+      )
+    ).status,
+    201,
+  );
+  // O admin não pode reaproveitar a foto do cliente como se fosse sua.
+  assert.equal(
+    (
+      await call(
+        `/api/orders/${o.id}/messages`,
+        'POST',
+        { body: 'Bonita', media_id: photo.data.media_id },
+        admin.cookie,
+      )
+    ).status,
+    400,
+  );
+  const detail = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, admin.cookie)
+  ).data;
+  assert.equal(detail.messages.at(-1).media_url, photo.data.url);
+  const fetchImage = (cookie) =>
+    fetch(base + photo.data.url, { headers: cookie ? { cookie } : {} });
+  assert.equal((await fetchImage()).status, 404);
+  assert.equal((await fetchImage(bob.cookie)).status, 404);
+  const seen = await fetchImage(admin.cookie);
+  assert.equal(seen.status, 200);
+  assert.equal(seen.headers.get('content-type'), 'image/webp');
+  assert.match(seen.headers.get('cache-control'), /^private/);
+  await call(`/api/orders/${o.id}/cancel`, 'POST', {}, gil.cookie);
 });

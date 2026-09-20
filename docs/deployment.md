@@ -34,6 +34,8 @@ Use o Blueprint `render.yaml` na raiz, ou configure um Web Service Node:
 | `STRIPE_WEBHOOK_SECRET` | Segredo do endpoint webhook do mesmo ambiente Stripe |
 | `SHIPPING_CENTS` | Frete fixo em centavos; `0` somente se envio grátis for intencional |
 | `SHIPPING_COUNTRIES` | Países ISO separados por vírgulas, inicialmente `ES` |
+| `RESEND_API_KEY` | Opcional; chave do Resend para avisos por email. Configure junto com `NOTIFY_FROM` |
+| `NOTIFY_FROM` | Remetente verificado no Resend, por exemplo `Qalbi Atelier <avisos@seu-dominio.com>`; exige domínio com SPF/DKIM configurados no Resend |
 
 O blueprint usa plano gratuito para não contratar custos automaticamente. Para receber vendas, avalie e escolha na conta um serviço sempre ativo: suspensão por inatividade pode atrasar login, checkout e webhooks. O código tem timeouts e devolve erro recuperável quando o backend não responde.
 
@@ -80,7 +82,7 @@ No painel Stripe, crie o destino de eventos:
 https://SEU-BACKEND.onrender.com/webhooks/stripe
 ```
 
-Assine `checkout.session.completed` e `checkout.session.expired`. Copie o segredo desse endpoint para `STRIPE_WEBHOOK_SECRET`. O endpoint usa corpo bruto e verifica assinatura; não passa pelo proxy Vercel. O estado do pedido não depende de o cliente voltar ao site.
+Assine `checkout.session.completed`, `checkout.session.expired`, `charge.refunded` e `charge.dispute.created`. Copie o segredo desse endpoint para `STRIPE_WEBHOOK_SECRET`. O endpoint usa corpo bruto e verifica assinatura; não passa pelo proxy Vercel. O estado do pedido não depende de o cliente voltar ao site.
 
 No ambiente Stripe de teste:
 
@@ -103,3 +105,8 @@ Só depois troque para chaves live e para o segredo do endpoint live. Nunca mist
 - Consulte [limites e operação](commerce.md), especialmente recuperação de conta, reembolso e pagamento com resposta incerta.
 
 Referências oficiais: [Neon — conectar](https://neon.com/docs/connect/connect-from-any-app), [Render Blueprint](https://render.com/docs/blueprint-spec), [Vercel Node runtime](https://vercel.com/docs/functions/runtimes/node-js), [Stripe — fulfillment](https://docs.stripe.com/checkout/fulfillment).
+
+
+## Registros da API
+
+Cada requisição gera uma linha JSON no stdout do Render (`event: "request"`, método, rota com IDs substituídos por `:id`, status, duração e `request_id`; `/health` é omitido). Falhas internas geram `event: "request_failed"` com o mesmo `request_id`. Nunca são gravados corpo, cookies, endereço ou dados do Stripe. Configure no Render um alerta de indisponibilidade sobre `/health` e use o `request_id` (também devolvido no header `X-Request-Id`) para localizar uma falha relatada por um cliente.

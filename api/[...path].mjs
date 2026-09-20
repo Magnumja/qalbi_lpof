@@ -29,7 +29,10 @@ export default async function handler(req, res) {
     const isImage = incoming.pathname.startsWith('/api/media/') && response.ok;
     res.setHeader('Content-Type', isImage ? 'image/webp' : 'application/json');
     if (isImage)
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader(
+        'Cache-Control',
+        response.headers.get('cache-control') ?? 'no-store',
+      );
     const cookies = response.headers.getSetCookie();
     if (cookies.length) res.setHeader('Set-Cookie', cookies);
     res

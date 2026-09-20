@@ -23,6 +23,11 @@ services:
         sync: false
       - key: SHIPPING_COUNTRIES
         value: ES
+      # Avisos por email (opcional). Preencha os dois ou nenhum.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: NOTIFY_FROM
+        sync: false
       # Seed opcional. Preencha email e senha juntos para criar o primeiro admin.
       - key: ADMIN_EMAIL
         sync: false

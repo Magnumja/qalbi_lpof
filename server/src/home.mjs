@@ -1,7 +1,8 @@
 import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import sharp from 'sharp';
-import { rateLimit } from './auth.mjs';
+import { rateLimit, sessionToken, tokenHash } from './auth.mjs';
+import { accessibleOrder } from './orders.mjs';
 import { HttpError, requireValue } from './errors.mjs';
 import { imageUrl } from './schemas.mjs';
 
@@ -51,11 +52,26 @@ export function publicHomeRoutes(app, pool) {
   });
   app.get('/api/media/:id', async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    const { rows } = await pool.query('SELECT data FROM media WHERE id=$1', [
-      id,
-    ]);
+    const { rows } = await pool.query(
+      'SELECT data,order_id FROM media WHERE id=$1',
+      [id],
+    );
     requireValue(rows[0], 404, 'Foto no encontrada.');
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    if (rows[0].order_id) {
+      // Foto de conversa: só quem participa do pedido pode ver.
+      const token = sessionToken(req);
+      const viewer = token
+        ? (
+            await pool.query(
+              'SELECT u.id,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',
+              [tokenHash(token)],
+            )
+          ).rows[0]
+        : null;
+      requireValue(viewer, 404, 'Foto no encontrada.');
+      await accessibleOrder(pool, rows[0].order_id, viewer);
+      res.set('Cache-Control', 'private, max-age=3600');
+    } else res.set('Cache-Control', 'public, max-age=31536000, immutable');
     res.type('image/webp').send(rows[0].data);
   });
 }
@@ -85,15 +101,26 @@ export function adminHomeRoutes(app, pool) {
   });
   app.post('/api/admin/media', async (req, res) => {
     await rateLimit(pool, `media:${req.user.id}`, 30, 3600);
-    const { data } = z
-      .object({
-        data: z
-          .string()
-          .max(750000)
-          .regex(/^[A-Za-z0-9+/]+={0,2}$/),
-      })
-      .parse(req.body);
-    let bytes;
+    const bytes = await encodePhoto(req.body);
+    const { rows } = await pool.query(
+      'INSERT INTO media(data,owner_id) VALUES($1,$2) RETURNING id',
+      [bytes, req.user.id],
+    );
+    res.status(201).json({ url: `/api/media/${rows[0].id}` });
+  });
+}
+// Valida, reencoda em WebP sem metadados e limita o tamanho guardado no banco.
+export async function encodePhoto(body) {
+  const { data } = z
+    .object({
+      data: z
+        .string()
+        .max(750000)
+        .regex(/^[A-Za-z0-9+/]+={0,2}$/),
+    })
+    .parse(body);
+  let bytes;
+  {
     try {
       const input = sharp(Buffer.from(data, 'base64'), {
         limitInputPixels: 16000000,
@@ -118,15 +145,11 @@ export function adminHomeRoutes(app, pool) {
     } catch {
       throw new HttpError(400, 'No se pudo leer la foto. Usa JPG, PNG o WebP.');
     }
-    requireValue(
-      bytes.length <= 500000,
-      400,
-      'La foto es demasiado grande. Elige una imagen más pequeña.',
-    );
-    const { rows } = await pool.query(
-      'INSERT INTO media(data) VALUES($1) RETURNING id',
-      [bytes],
-    );
-    res.status(201).json({ url: `/api/media/${rows[0].id}` });
-  });
+  }
+  requireValue(
+    bytes.length <= 500000,
+    400,
+    'La foto es demasiado grande. Elige una imagen más pequeña.',
+  );
+  return bytes;
 }

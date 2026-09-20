@@ -58,7 +58,7 @@ export function authenticate(pool) {
     const token = sessionToken(req);
     if (!token) throw new HttpError(401, 'Inicia sesión para continuar.');
     const { rows } = await pool.query(
-      'SELECT u.id,u.name,u.email,u.phone,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',
+      'SELECT u.id,u.name,u.email,u.phone,u.role,u.email_notifications FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',
       [tokenHash(token)],
     );
     if (!rows[0])

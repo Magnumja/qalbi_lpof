@@ -36,17 +36,36 @@ import {
 import { createPayments } from './payments.mjs';
 import { transaction } from './db.mjs';
 import { HttpError, requireValue } from './errors.mjs';
-import { publicHomeRoutes, adminHomeRoutes } from './home.mjs';
+import { publicHomeRoutes, adminHomeRoutes, encodePhoto } from './home.mjs';
+import { createNotifier } from './notify.mjs';
 
-export function createApp(pool, config, stripeClient) {
+export function createApp(pool, config, stripeClient, sender) {
   const app = express();
-  const payments = createPayments(pool, config, stripeClient);
+  const notifier = createNotifier(pool, config, sender);
+  const payments = createPayments(pool, config, stripeClient, notifier);
+  app.locals.notifier = notifier;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.set('X-Request-Id', randomUUID());
+    // Uma linha JSON por requisição, sem query, corpo, cookies ou IDs de pedido.
+    if (req.path !== '/health') {
+      const started = process.hrtime.bigint();
+      res.on('finish', () =>
+        console.log(
+          JSON.stringify({
+            event: 'request',
+            request_id: res.get('X-Request-Id'),
+            method: req.method,
+            path: req.path.replace(/[a-f0-9-]{36}/g, ':id'),
+            status: res.statusCode,
+            duration_ms: Number(process.hrtime.bigint() - started) / 1e6,
+          }),
+        ),
+      );
+    }
     next();
   });
   app.get('/health', async (_req, res) => {
@@ -78,6 +97,7 @@ export function createApp(pool, config, stripeClient) {
     },
   );
   app.use('/api/admin/media', express.json({ limit: '1mb' }));
+  app.use('/api/orders/:id/photos', express.json({ limit: '1mb' }));
   app.use('/api/admin/home', express.json({ limit: '192kb' }));
   app.use(express.json({ limit: '32kb' }));
   app.use('/api', (req, _res, next) => {
@@ -102,6 +122,7 @@ export function createApp(pool, config, stripeClient) {
       shipping_cents: config.SHIPPING_CENTS,
       countries: config.countries,
       payment_enabled: !!payments.stripe,
+      notifications_enabled: notifier.enabled,
     });
   });
   app.post('/api/auth/register', async (req, res) => {
@@ -290,6 +311,14 @@ export function createApp(pool, config, stripeClient) {
     }
     res.json({ phone: input.phone });
   });
+  app.put('/api/auth/notifications', async (req, res) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+    await pool.query('UPDATE users SET email_notifications=$2 WHERE id=$1', [
+      req.user.id,
+      enabled,
+    ]);
+    res.json({ enabled });
+  });
   app.get('/api/orders', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT o.*,u.name AS customer_name,${unreadColumn('$1')} FROM orders o JOIN users u ON o.user_id=u.id WHERE o.user_id=$1 ORDER BY o.created_at DESC LIMIT 100`,
@@ -329,7 +358,7 @@ export function createApp(pool, config, stripeClient) {
         id,
       ]),
       pool.query(
-        `SELECT * FROM (SELECT m.id,m.body,m.created_at,u.name AS sender_name,u.role AS sender_role FROM messages m JOIN users u ON u.id=m.sender_id WHERE order_id=$1 ORDER BY m.created_at DESC LIMIT 200) recent ORDER BY created_at`,
+        `SELECT * FROM (SELECT m.id,m.body,m.created_at,u.name AS sender_name,u.role AS sender_role,CASE WHEN m.media_id IS NULL THEN NULL ELSE '/api/media/'||m.media_id END AS media_url FROM messages m JOIN users u ON u.id=m.sender_id WHERE order_id=$1 ORDER BY m.created_at DESC LIMIT 200) recent ORDER BY created_at`,
         [id],
       ),
       pool.query(
@@ -345,16 +374,40 @@ export function createApp(pool, config, stripeClient) {
       events: events.rows,
     });
   });
+  // Foto para a conversa: guardada ligada ao pedido; a mensagem referencia o id.
+  app.post('/api/orders/:id/photos', async (req, res) => {
+    const id = uuid.parse(req.params.id);
+    await accessibleOrder(pool, id, req.user);
+    await rateLimit(pool, `photo:${req.user.id}`, 10, 3600);
+    const bytes = await encodePhoto(req.body);
+    const { rows } = await pool.query(
+      'INSERT INTO media(data,owner_id,order_id) VALUES($1,$2,$3) RETURNING id',
+      [bytes, req.user.id, id],
+    );
+    res
+      .status(201)
+      .json({ media_id: rows[0].id, url: `/api/media/${rows[0].id}` });
+  });
   app.post('/api/orders/:id/messages', async (req, res) => {
     const id = uuid.parse(req.params.id),
-      { body } = messageSchema.parse(req.body);
-    await accessibleOrder(pool, id, req.user);
+      { body, media_id } = messageSchema.parse(req.body);
+    const order = await accessibleOrder(pool, id, req.user);
     await rateLimit(pool, `message:${req.user.id}`, 30, 60);
+    if (media_id) {
+      const owned = await pool.query(
+        'SELECT 1 FROM media WHERE id=$1 AND order_id=$2 AND owner_id=$3',
+        [media_id, id, req.user.id],
+      );
+      requireValue(owned.rowCount, 400, 'La foto no pertenece a este pedido.');
+    }
     await pool.query(
-      'INSERT INTO messages(order_id,sender_id,body) VALUES($1,$2,$3)',
-      [id, req.user.id, body],
+      'INSERT INTO messages(order_id,sender_id,body,media_id) VALUES($1,$2,$3,$4)',
+      [id, req.user.id, body, media_id ?? null],
     );
     await markRead(pool, id, req.user.id);
+    await notifier.enqueue(pool, order, 'message', {
+      toAdmins: req.user.role !== 'admin',
+    });
     res.status(201).json({ ok: true });
   });
   app.post('/api/orders/:id/checkout', async (req, res) => {
@@ -412,6 +465,15 @@ export function createApp(pool, config, stripeClient) {
       expires_at: expires,
     });
   });
+  // Filtros fixos; o padrão ordena primeiro o que precisa do atelier.
+  const orderFilters = {
+    all: 'true',
+    requested: "status='requested'",
+    awaiting_payment: "status='awaiting_payment'",
+    active: "status IN ('confirmed','in_progress','ready')",
+    overdue: 'overdue',
+    unread: 'unread_count>0',
+  };
   app.get('/api/admin/orders', async (req, res) => {
     const page = z.coerce
       .number()
@@ -419,8 +481,13 @@ export function createApp(pool, config, stripeClient) {
       .min(0)
       .max(10000)
       .parse(req.query.page ?? 0);
+    const filter = z
+      .enum(Object.keys(orderFilters))
+      .parse(req.query.filter ?? 'all');
     const { rows } = await pool.query(
-      `SELECT o.*,u.name AS customer_name,${unreadColumn('$2')} FROM orders o JOIN users u ON o.user_id=u.id ORDER BY o.created_at DESC LIMIT 50 OFFSET $1`,
+      `SELECT * FROM (SELECT o.*,u.name AS customer_name,${unreadColumn('$2')},(o.due_at<current_date AND o.status NOT IN ('completed','cancelled','shipped')) AS overdue FROM orders o JOIN users u ON o.user_id=u.id) t
+      WHERE ${orderFilters[filter]}
+      ORDER BY (status='requested') DESC,(unread_count>0) DESC,overdue DESC,created_at DESC LIMIT 50 OFFSET $1`,
       [page * 50, req.user.id],
     );
     const stats = (
@@ -519,6 +586,7 @@ export function createApp(pool, config, stripeClient) {
         req.user.id,
         'Presupuesto disponible. Incluye el envío.',
       );
+      await notifier.enqueue(db, order, 'quote');
     });
     res.json({ ok: true });
   });
@@ -555,6 +623,8 @@ export function createApp(pool, config, stripeClient) {
         req.user.id,
         `Estado: ${input.status}. Plazo: ${input.due_at ?? 'por confirmar'}.`,
       );
+      if (input.status !== order.status)
+        await notifier.enqueue(db, order, 'status');
     });
     res.json({ ok: true });
   });
