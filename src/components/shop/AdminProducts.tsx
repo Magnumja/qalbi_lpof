@@ -91,9 +91,13 @@ export default function AdminProducts({
           onChange={() => markDirty(true)}
           onSubmit={async (e) => {
             e.preventDefault();
-            setBusy(true);
             setError('');
             setNotice('');
+            if (!image) {
+              setError('Sube una foto de la pieza antes de guardar.');
+              return;
+            }
+            setBusy(true);
             const f = new FormData(e.currentTarget);
             const body = {
               title: f.get('title'),

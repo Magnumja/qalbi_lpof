@@ -120,8 +120,20 @@ export default function AdminHome({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          setBusy(true);
           setError('');
+          const missing = [
+            ...Object.values(home.content.photos),
+            ...home.content.cards,
+          ].filter((photo) => !photo.src);
+          if (missing.length) {
+            setError(
+              missing.length === 1
+                ? 'Falta subir una foto antes de publicar.'
+                : `Faltan ${missing.length} fotos antes de publicar.`,
+            );
+            return;
+          }
+          setBusy(true);
           try {
             const saved = await api<HomeDocument>('/admin/home', 'PUT', home);
             setHome(saved);
@@ -186,7 +198,7 @@ export default function AdminHome({
                           category: 'Bordado',
                           description:
                             'Describe aquí la historia y los detalles de esta creación.',
-                          src: '/shop/embroidery.jpg',
+                          src: '',
                           alt: 'Describe la fotografía de tu creación',
                           visible: false,
                         },

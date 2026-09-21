@@ -69,15 +69,11 @@ export default function PhotoField({
           {error}
         </p>
       )}
-      <label>
-        O usar una dirección de imagen
-        <input
-          value={value.src}
-          required
-          maxLength={1000}
-          onChange={(e) => onChange({ ...value, src: e.target.value })}
-        />
-      </label>
+      {!value.src && (
+        <p className="shop-error" role="status">
+          Sube una foto para poder guardar.
+        </p>
+      )}
       {withAlt && (
         <label>
           Descripción de la foto (accesibilidad)
