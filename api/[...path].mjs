@@ -12,6 +12,16 @@ export default async function handler(req, res) {
   const headers = { accept: 'application/json' };
   for (const name of ['cookie', 'content-type', 'origin', 'x-qalbi-request'])
     if (req.headers[name]) headers[name] = req.headers[name];
+  // IP do visitante para os limites por IP; a API só confia com o segredo.
+  const ip = String(
+    req.headers['x-forwarded-for'] ?? req.headers['x-real-ip'] ?? '',
+  )
+    .split(',')[0]
+    .trim();
+  if (process.env.PROXY_SECRET && ip) {
+    headers['x-qalbi-proxy'] = process.env.PROXY_SECRET;
+    headers['x-qalbi-client-ip'] = ip;
+  }
   try {
     const response = await fetch(
       new URL(incoming.pathname + incoming.search, backend),
@@ -29,7 +39,12 @@ export default async function handler(req, res) {
     const isImage = incoming.pathname.startsWith('/api/media/') && response.ok;
     res.setHeader('Content-Type', isImage ? 'image/webp' : 'application/json');
     if (isImage)
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader(
+        'Cache-Control',
+        response.headers.get('cache-control') ?? 'no-store',
+      );
+    const requestId = response.headers.get('x-request-id');
+    if (requestId) res.setHeader('X-Request-Id', requestId);
     const cookies = response.headers.getSetCookie();
     if (cookies.length) res.setHeader('Set-Cookie', cookies);
     res

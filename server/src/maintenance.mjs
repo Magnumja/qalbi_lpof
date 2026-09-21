@@ -22,3 +22,17 @@ export async function expireUnstartedOrders(pool) {
     }
   });
 }
+
+/** Apaga registros operacionais vencidos. Pedidos, mensagens e fotos usadas ficam. */
+export async function pruneExpiredRecords(pool) {
+  await pool.query(
+    "DELETE FROM access_links WHERE (used_at IS NOT NULL OR expires_at<now()) AND created_at<now()-interval '7 days'",
+  );
+  await pool.query(
+    "DELETE FROM notifications WHERE sent_at<now()-interval '30 days' OR (sent_at IS NULL AND attempts>=5 AND created_at<now()-interval '30 days')",
+  );
+  // Foto enviada à conversa mas nunca anexada a uma mensagem.
+  await pool.query(
+    "DELETE FROM media m WHERE m.order_id IS NOT NULL AND m.created_at<now()-interval '24 hours' AND NOT EXISTS (SELECT 1 FROM messages WHERE media_id=m.id)",
+  );
+}

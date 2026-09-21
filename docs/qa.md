@@ -66,3 +66,12 @@ Ao retomar, o servidor de desenvolvimento respondeu 500 após reinícios de conf
 - Entrada por IntersectionObserver e Web Animations API com cancelamento ao trocar o filtro ou ativar movimento reduzido; zoom e setas com alternativa CSS sem movimento. Preferência de movimento reduzido revisada no código, sem teste de configuração do sistema nesta rodada.
 - `npm run check`, `npm run build` e `npm run format:check` passaram. Página temporária de revisão removida da compilação.
 - Guia de cadastro em `comoadicionarfotos.md`, com categorias e botões gerados a partir do conteúdo.
+
+
+## Jornadas no navegador (Playwright) — 20/09/2026
+
+`npm run test:e2e` sobe a API contra `TEST_DATABASE_URL` (banco `qalbi_test`, obrigatório) na porta 4009, faz o build estático e o serve com `scripts/serve-dist.mjs` (proxy de `/api`, mesmo papel da função Vercel) na porta 4329. Viewport 390 × 844. Quatro jornadas: comprar; encomendar e receber orçamento; conversar (selo de mensagem nova no painel, resposta chega por atualização automática); link de acesso (gerar, usar, reutilização recusada). Sem contas ou Stripe reais; o banco é limpo no início. Falhas guardam captura e trace em `output/e2e/`.
+
+Para um PostgreSQL descartável local: `eval "$(npm run -s db:test)"` exporta `TEST_DATABASE_URL`, `DATABASE_URL` e `QALBI_PGDATA`; pare com `pg_ctl -D "$QALBI_PGDATA" stop`. Requer os binários do PostgreSQL no PATH (Homebrew `postgresql@17`).
+
+Na CI, o job `e2e` roda após `quality` com Chromium instalado pelo Playwright. O job foi escrito e validado localmente, mas ainda não executou no GitHub.

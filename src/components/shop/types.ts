@@ -4,6 +4,7 @@ export interface User {
   email: string;
   phone?: string | null;
   role: 'customer' | 'admin';
+  email_notifications?: boolean;
 }
 export interface Product {
   id: string;
@@ -39,6 +40,8 @@ export interface Order {
   brief: string;
   due_at: string | null;
   tracking: string;
+  /** Só chega ao painel; o cliente não recebe dados de pagamento internos. */
+  payment_intent?: string | null;
   address: Address;
   created_at: string;
 }
@@ -47,6 +50,7 @@ export interface Message {
   body: string;
   sender_name: string;
   sender_role: string;
+  media_url?: string | null;
   created_at: string;
 }
 export interface OrderDetail {
@@ -61,4 +65,5 @@ export interface ShopData {
   shipping_cents: number;
   countries: string[];
   payment_enabled: boolean;
+  notifications_enabled: boolean;
 }

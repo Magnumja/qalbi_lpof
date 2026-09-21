@@ -2,9 +2,12 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import Stripe from 'stripe';
+import sharp from 'sharp';
 import { createPool } from '../src/db.mjs';
 import { migrate } from '../src/migrate.mjs';
 import { createApp } from '../src/app.mjs';
+import { pruneExpiredRecords } from '../src/maintenance.mjs';
+import { forgetCustomer } from '../src/forget.mjs';
 import { hashPassword, verifyPassword } from '../src/auth.mjs';
 
 const database = process.env.TEST_DATABASE_URL;
@@ -135,7 +138,7 @@ async function webhook(event) {
 before(async () => {
   await migrate(pool);
   await pool.query(
-    'TRUNCATE users,products,sessions,orders,order_items,messages,order_events,order_reads,access_links,stripe_events,rate_limits RESTART IDENTITY CASCADE',
+    'TRUNCATE users,products,sessions,orders,order_items,messages,order_events,order_reads,access_links,notifications,stripe_events,rate_limits RESTART IDENTITY CASCADE',
   );
   const app = createApp(
     pool,
@@ -971,5 +974,711 @@ test('produto aceita foto subida pelo painel', async () => {
       )
     ).status,
     400,
+  );
+});
+test('painel filtra e ordena primeiro o que precisa do atelier', async () => {
+  const dana = await register('Dana'),
+    p = await product();
+  const custom = (
+    await call(
+      '/api/orders/custom',
+      'POST',
+      {
+        request_key: randomUUID(),
+        address,
+        brief: 'Encomenda de teste com detalhes suficientes para o pedido.',
+      },
+      dana.cookie,
+    )
+  ).data.order;
+  const shop = (await order(dana, p)).data.order;
+  await call(
+    `/api/orders/${shop.id}/messages`,
+    'POST',
+    { body: '¿Cuándo llega?' },
+    dana.cookie,
+  );
+  const list = async (filter) =>
+    (
+      await call(
+        `/api/admin/orders?filter=${filter}`,
+        'GET',
+        undefined,
+        admin.cookie,
+      )
+    ).data.orders;
+  const all = await list('all');
+  // Encomenda por orçar vem antes; depois a conversa com mensagem nova.
+  assert.equal(all[0].id, custom.id);
+  assert.equal(all[1].id, shop.id);
+  assert.ok((await list('requested')).every((o) => o.status === 'requested'));
+  assert.ok((await list('unread')).every((o) => o.unread_count > 0));
+  assert.ok((await list('unread')).some((o) => o.id === shop.id));
+  assert.equal(
+    (
+      await call(
+        '/api/admin/orders?filter=drop',
+        'GET',
+        undefined,
+        admin.cookie,
+      )
+    ).status,
+    400,
+  );
+  await call(`/api/orders/${shop.id}/cancel`, 'POST', {}, dana.cookie);
+  await call(`/api/orders/${custom.id}/cancel`, 'POST', {}, dana.cookie);
+});
+test('reembolso e disputa no Stripe refletem no pedido sem alterar estoque', async () => {
+  const erin = await register('Erin'),
+    p = await product(),
+    o = (await order(erin, p)).data.order;
+  await call(`/api/orders/${o.id}/checkout`, 'POST', {}, erin.cookie);
+  const session = sessions.get(`qalbi-checkout-${o.id}`);
+  assert.equal(
+    await webhook({
+      id: `evt_${randomUUID()}`,
+      type: 'checkout.session.completed',
+      data: {
+        object: { ...session, payment_status: 'paid', status: 'complete' },
+      },
+    }),
+    200,
+  );
+  const charge = (extra) => ({
+    id: `evt_${randomUUID()}`,
+    type: 'charge.refunded',
+    data: {
+      object: {
+        id: `ch_${randomUUID()}`,
+        payment_intent: session.payment_intent,
+        currency: 'eur',
+        ...extra,
+      },
+    },
+  });
+  assert.equal(
+    await webhook(charge({ refunded: false, amount_refunded: 500 })),
+    200,
+  );
+  let detail = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, erin.cookie)
+  ).data;
+  assert.equal(detail.order.payment_status, 'paid');
+  assert.ok(
+    detail.events.some((e) => e.description.startsWith('Reembolso parcial')),
+  );
+  assert.equal(
+    await webhook({
+      id: `evt_${randomUUID()}`,
+      type: 'charge.dispute.created',
+      data: { object: { payment_intent: session.payment_intent } },
+    }),
+    200,
+  );
+  assert.equal(
+    await webhook(charge({ refunded: true, amount_refunded: 3000 })),
+    200,
+  );
+  detail = (await call(`/api/orders/${o.id}`, 'GET', undefined, erin.cookie))
+    .data;
+  assert.equal(detail.order.payment_status, 'refunded');
+  assert.ok(detail.events.some((e) => e.description.startsWith('Disputa')));
+  // Pagamento desconhecido é ignorado sem erro; estoque não muda.
+  assert.equal(
+    await webhook(charge({ payment_intent: 'pi_unknown', refunded: true })),
+    200,
+  );
+  const stock = (
+    await pool.query('SELECT stock FROM products WHERE id=$1', [p.id])
+  ).rows[0].stock;
+  assert.equal(stock, 4);
+});
+test('avisos por email: fila por evento, agrupamento de mensagens, opt-out e reenvio', async () => {
+  const sent = [];
+  let fail = false;
+  const notifying = createApp(
+    pool,
+    {
+      FRONTEND_URL: origin,
+      NODE_ENV: 'test',
+      SHIPPING_CENTS: 500,
+      countries: ['ES'],
+      STRIPE_WEBHOOK_SECRET: webhookSecret,
+      RESEND_API_KEY: 'local-test-only',
+      NOTIFY_FROM: 'Qalbi <avisos@example.test>',
+    },
+    fakeStripe,
+    async (mail) => {
+      if (fail) throw new Error('resend_500');
+      sent.push(mail);
+    },
+  );
+  const server2 = notifying.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server2.once('listening', resolve));
+  const base2 = `http://127.0.0.1:${server2.address().port}`;
+  const call2 = async (path, method = 'GET', body, cookie) => {
+    const res = await fetch(base2 + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+        ...(cookie ? { cookie } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: res.status, data: await res.json() };
+  };
+  const notifier = notifying.locals.notifier;
+  const pending = async () =>
+    (
+      await pool.query(
+        'SELECT kind FROM notifications WHERE sent_at IS NULL ORDER BY created_at',
+      )
+    ).rows.map((r) => r.kind);
+  try {
+    assert.equal((await call2('/api/shop')).data.notifications_enabled, true);
+    assert.equal((await call('/api/shop')).data.notifications_enabled, false);
+    const fay = await register('Fay');
+    const custom = (
+      await call2(
+        '/api/orders/custom',
+        'POST',
+        {
+          request_key: randomUUID(),
+          address,
+          brief: 'Encomenda para testar os avisos por email do atelier.',
+        },
+        fay.cookie,
+      )
+    ).data.order;
+    // Duas mensagens do cliente geram um único aviso pendente por administrador.
+    const admins = (
+      await pool.query(
+        "SELECT count(*)::int AS n FROM users WHERE role='admin'",
+      )
+    ).rows[0].n;
+    for (const body of ['Hola', '¿Sigues ahí?'])
+      await call2(
+        `/api/orders/${custom.id}/messages`,
+        'POST',
+        { body },
+        fay.cookie,
+      );
+    assert.deepEqual(await pending(), Array(admins).fill('message'));
+    // Mensagem recente ainda não é entregue (janela de agrupamento).
+    assert.equal(await notifier.deliverPending(), 0);
+    await pool.query(
+      "UPDATE notifications SET created_at=now()-interval '3 minutes'",
+    );
+    assert.equal(await notifier.deliverPending(), admins);
+    assert.ok(sent.some((m) => m.to === 'admin@example.test'));
+    assert.match(sent[0].text, new RegExp(`/admin\\?order=${custom.id}`));
+    await call2(
+      `/api/admin/orders/${custom.id}/quote`,
+      'POST',
+      { total_cents: 4000, due_at: '2030-01-01' },
+      admin.cookie,
+    );
+    assert.deepEqual(await pending(), ['quote']);
+    assert.equal(await notifier.deliverPending(), 1);
+    assert.equal(sent.at(-1).to, 'fay@example.test');
+    assert.match(sent.at(-1).subject, /presupuesto/);
+    assert.match(sent.at(-1).text, new RegExp(`/cuenta\\?order=${custom.id}`));
+    // Falha do provedor conta tentativa e mantém pendente.
+    await call2(
+      `/api/orders/${custom.id}/messages`,
+      'POST',
+      { body: 'Te enseño una muestra.' },
+      admin.cookie,
+    );
+    await pool.query(
+      "UPDATE notifications SET created_at=now()-interval '3 minutes'",
+    );
+    fail = true;
+    assert.equal(await notifier.deliverPending(), 0);
+    const failed = (
+      await pool.query(
+        'SELECT attempts,error FROM notifications WHERE sent_at IS NULL',
+      )
+    ).rows[0];
+    assert.equal(failed.attempts, 1);
+    assert.equal(failed.error, 'resend_500');
+    fail = false;
+    // A nova tentativa só acontece depois da janela de reserva de 5 minutos.
+    assert.equal(await notifier.deliverPending(), 0);
+    await pool.query(
+      "UPDATE notifications SET claimed_at=now()-interval '6 minutes' WHERE sent_at IS NULL",
+    );
+    assert.equal(await notifier.deliverPending(), 1);
+    // Cliente desliga os avisos: nada é enfileirado para ele.
+    assert.equal(
+      (
+        await call2(
+          '/api/auth/notifications',
+          'PUT',
+          { enabled: false },
+          fay.cookie,
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await call2('/api/auth/me', 'GET', undefined, fay.cookie)).data.user
+        .email_notifications,
+      false,
+    );
+    await call2(
+      `/api/orders/${custom.id}/messages`,
+      'POST',
+      { body: 'Otra muestra.' },
+      admin.cookie,
+    );
+    assert.deepEqual(await pending(), []);
+    // Sem provedor configurado, nada é enfileirado.
+    await call(
+      `/api/orders/${custom.id}/messages`,
+      'POST',
+      { body: 'Sin proveedor' },
+      fay.cookie,
+    );
+    assert.deepEqual(await pending(), []);
+    await call2(`/api/orders/${custom.id}/cancel`, 'POST', {}, fay.cookie);
+  } finally {
+    await new Promise((resolve) => server2.close(resolve));
+  }
+});
+test('foto na conversa: só participantes enviam e veem; mensagem só com foto é válida', async () => {
+  const gil = await register('Gil'),
+    p = await product(),
+    o = (await order(gil, p)).data.order;
+  const png = (
+    await sharp({
+      create: { width: 8, height: 8, channels: 3, background: '#a0b080' },
+    })
+      .png()
+      .toBuffer()
+  ).toString('base64');
+  assert.equal(
+    (
+      await call(
+        `/api/orders/${o.id}/photos`,
+        'POST',
+        { data: png },
+        bob.cookie,
+      )
+    ).status,
+    404,
+  );
+  const photo = await call(
+    `/api/orders/${o.id}/photos`,
+    'POST',
+    { data: png },
+    gil.cookie,
+  );
+  assert.equal(photo.status, 201);
+  assert.equal(
+    (await call(`/api/orders/${o.id}/messages`, 'POST', {}, gil.cookie)).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call(
+        `/api/orders/${o.id}/messages`,
+        'POST',
+        { media_id: photo.data.media_id },
+        gil.cookie,
+      )
+    ).status,
+    201,
+  );
+  // O admin não pode reaproveitar a foto do cliente como se fosse sua.
+  assert.equal(
+    (
+      await call(
+        `/api/orders/${o.id}/messages`,
+        'POST',
+        { body: 'Bonita', media_id: photo.data.media_id },
+        admin.cookie,
+      )
+    ).status,
+    400,
+  );
+  const detail = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, admin.cookie)
+  ).data;
+  assert.equal(detail.messages.at(-1).media_url, photo.data.url);
+  const fetchImage = (cookie) =>
+    fetch(base + photo.data.url, { headers: cookie ? { cookie } : {} });
+  assert.equal((await fetchImage()).status, 404);
+  assert.equal((await fetchImage(bob.cookie)).status, 404);
+  const seen = await fetchImage(admin.cookie);
+  assert.equal(seen.status, 200);
+  assert.equal(seen.headers.get('content-type'), 'image/webp');
+  assert.match(seen.headers.get('cache-control'), /^private/);
+  await call(`/api/orders/${o.id}/cancel`, 'POST', {}, gil.cookie);
+});
+test('IP do visitante só é aceito com o segredo do proxy; erros do parser são neutros', async () => {
+  const guarded = createApp(
+    pool,
+    {
+      FRONTEND_URL: origin,
+      NODE_ENV: 'test',
+      SHIPPING_CENTS: 500,
+      countries: ['ES'],
+      PROXY_SECRET: 'segredo-local-de-teste-16',
+    },
+    fakeStripe,
+  );
+  const server3 = guarded.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server3.once('listening', resolve));
+  const base3 = `http://127.0.0.1:${server3.address().port}`;
+  // Identificador distinto por tentativa: o limite testado aqui é o por IP.
+  let n = 0;
+  const attempt = (extra) =>
+    fetch(base3 + '/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+        ...extra,
+      },
+      body: JSON.stringify({
+        identifier: `nadie${n++}@example.test`,
+        password: 'password-that-does-not-exist',
+      }),
+    });
+  try {
+    await pool.query('DELETE FROM rate_limits');
+    // Sem o segredo, o header de IP é ignorado: todos contam no mesmo IP local.
+    for (let i = 0; i < 100; i++)
+      await attempt({ 'x-qalbi-client-ip': `10.0.0.${i}` });
+    assert.equal((await attempt({})).status, 429);
+    // Com o segredo, um IP diferente tem seu próprio limite.
+    assert.equal(
+      (
+        await attempt({
+          'x-qalbi-proxy': 'segredo-local-de-teste-16',
+          'x-qalbi-client-ip': '203.0.113.9',
+        })
+      ).status,
+      401,
+    );
+    // Segredo errado volta ao IP da conexão, já bloqueado.
+    assert.equal(
+      (
+        await attempt({
+          'x-qalbi-proxy': 'segredo-errado-de-teste-16',
+          'x-qalbi-client-ip': '203.0.113.10',
+        })
+      ).status,
+      429,
+    );
+    await pool.query('DELETE FROM rate_limits');
+    const broken = await fetch(base3 + '/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+      },
+      body: '{"identifier": ',
+    });
+    assert.equal(broken.status, 400);
+    const message = (await broken.json()).error;
+    assert.doesNotMatch(message, /JSON|token|Unexpected/i);
+    const huge = await fetch(base3 + '/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+      },
+      body: JSON.stringify({ identifier: 'x'.repeat(40000), password: 'y' }),
+    });
+    assert.equal(huge.status, 413);
+    assert.match((await huge.json()).error, /demasiado grande/);
+  } finally {
+    await new Promise((resolve) => server3.close(resolve));
+  }
+});
+test('cliente não recebe campos internos do pedido; retenção apaga só registros vencidos', async () => {
+  const hana = await register('Hana'),
+    p = await product(),
+    o = (await order(hana, p)).data.order;
+  for (const key of ['request_hash', 'checkout_url', 'inventory_released'])
+    assert.equal(key in o, false, key);
+  const listed = (await call('/api/orders', 'GET', undefined, hana.cookie)).data
+    .orders[0];
+  assert.equal('checkout_id' in listed, false);
+  const detail = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, hana.cookie)
+  ).data.order;
+  assert.equal('production_days' in detail, false);
+  assert.equal(detail.status, 'awaiting_payment');
+  // Retenção: link usado há mais de 7 dias sai; link recente fica.
+  await call(`/api/admin/orders/${o.id}/access-link`, 'POST', {}, admin.cookie);
+  const recent = (
+    await pool.query(
+      "UPDATE access_links SET used_at=now(),created_at=now()-interval '8 days' WHERE user_id=$1 RETURNING token_hash",
+      [hana.id],
+    )
+  ).rows.length;
+  assert.equal(recent, 1);
+  await call(`/api/admin/orders/${o.id}/access-link`, 'POST', {}, admin.cookie);
+  const png = (
+    await sharp({
+      create: { width: 4, height: 4, channels: 3, background: '#000' },
+    })
+      .png()
+      .toBuffer()
+  ).toString('base64');
+  const orphan = (
+    await call(`/api/orders/${o.id}/photos`, 'POST', { data: png }, hana.cookie)
+  ).data.media_id;
+  const attached = (
+    await call(`/api/orders/${o.id}/photos`, 'POST', { data: png }, hana.cookie)
+  ).data.media_id;
+  await call(
+    `/api/orders/${o.id}/messages`,
+    'POST',
+    { media_id: attached },
+    hana.cookie,
+  );
+  await pool.query(
+    "UPDATE media SET created_at=now()-interval '2 days' WHERE id=ANY($1)",
+    [[orphan, attached]],
+  );
+  await pruneExpiredRecords(pool);
+  const links = (
+    await pool.query('SELECT used_at FROM access_links WHERE user_id=$1', [
+      hana.id,
+    ])
+  ).rows;
+  assert.equal(links.length, 1);
+  assert.equal(links[0].used_at, null);
+  const media = (
+    await pool.query('SELECT id FROM media WHERE id=ANY($1) ORDER BY id', [
+      [orphan, attached],
+    ])
+  ).rows.map((r) => r.id);
+  assert.deepEqual(media, [attached]);
+  await call(`/api/orders/${o.id}/cancel`, 'POST', {}, hana.cookie);
+});
+test('sessões: lista, renovação por uso, encerrar as demais e aviso de novo acesso', async () => {
+  const notifying = createApp(
+    pool,
+    {
+      FRONTEND_URL: origin,
+      NODE_ENV: 'test',
+      SHIPPING_CENTS: 500,
+      countries: ['ES'],
+      RESEND_API_KEY: 'local-test-only',
+      NOTIFY_FROM: 'Qalbi <avisos@example.test>',
+    },
+    fakeStripe,
+    async () => {},
+  );
+  const server4 = notifying.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server4.once('listening', resolve));
+  const base4 = `http://127.0.0.1:${server4.address().port}`;
+  const call4 = async (path, method = 'GET', body, cookie, ua) => {
+    const res = await fetch(base4 + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+        ...(cookie ? { cookie } : {}),
+        ...(ua ? { 'user-agent': ua } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return {
+      status: res.status,
+      data: await res.json(),
+      cookie: res.headers.get('set-cookie')?.split(';')[0],
+    };
+  };
+  try {
+    const ivy = await register('Ivy');
+    const phone = await call4(
+      '/api/auth/login',
+      'POST',
+      {
+        identifier: 'ivy@example.test',
+        password: 'a-strong-test-password-2026',
+      },
+      undefined,
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/605.1',
+    );
+    assert.equal(phone.status, 200);
+    const listed = (
+      await call4('/api/auth/sessions', 'GET', undefined, phone.cookie)
+    ).data.sessions;
+    assert.equal(listed.length, 2);
+    assert.equal(listed.find((x) => x.current).label, 'iPhone/iPad · Safari');
+    // Aviso de novo acesso enfileirado sem pedido.
+    const login = (
+      await pool.query(
+        "SELECT order_id FROM notifications WHERE user_id=$1 AND kind='login'",
+        [ivy.id],
+      )
+    ).rows;
+    assert.equal(login.length, 1);
+    assert.equal(login[0].order_id, null);
+    assert.equal(await notifying.locals.notifier.deliverPending(), 1);
+    // Renovação: sessão quase vencida ganha 7 dias ao ser usada.
+    await pool.query(
+      "UPDATE sessions SET expires_at=now()+interval '1 hour' WHERE user_id=$1",
+      [ivy.id],
+    );
+    await call4('/api/auth/me', 'GET', undefined, phone.cookie);
+    const renewed = (
+      await pool.query(
+        "SELECT count(*)::int AS n FROM sessions WHERE user_id=$1 AND expires_at>now()+interval '6 days'",
+        [ivy.id],
+      )
+    ).rows[0].n;
+    assert.equal(renewed, 1);
+    // Encerrar as demais mantém só a atual.
+    const closed = await call4(
+      '/api/auth/sessions/close-others',
+      'POST',
+      {},
+      phone.cookie,
+    );
+    assert.equal(closed.data.closed, 1);
+    assert.equal(
+      (await call('/api/auth/me', 'GET', undefined, ivy.cookie)).status,
+      401,
+    );
+    assert.equal(
+      (await call4('/api/auth/me', 'GET', undefined, phone.cookie)).status,
+      200,
+    );
+  } finally {
+    await new Promise((resolve) => server4.close(resolve));
+  }
+});
+test('senha presente em vazamentos é recusada no cadastro, na troca e no link de acesso', async () => {
+  const guarded = createApp(
+    pool,
+    {
+      FRONTEND_URL: origin,
+      NODE_ENV: 'test',
+      SHIPPING_CENTS: 500,
+      countries: ['ES'],
+    },
+    fakeStripe,
+    undefined,
+    async (password) => password === 'contrasena-filtrada-2026',
+  );
+  const server5 = guarded.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server5.once('listening', resolve));
+  const base5 = `http://127.0.0.1:${server5.address().port}`;
+  const call5 = async (path, method, body, cookie) => {
+    const res = await fetch(base5 + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        origin,
+        'X-Qalbi-Request': '1',
+        ...(cookie ? { cookie } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, data: await res.json() };
+  };
+  try {
+    const leaked = await call5('/api/auth/register', 'POST', {
+      name: 'Jo',
+      email: 'jo@example.test',
+      password: 'contrasena-filtrada-2026',
+    });
+    assert.equal(leaked.status, 400);
+    assert.match(leaked.data.error, /filtraciones/);
+    assert.equal(
+      (
+        await call5('/api/auth/register', 'POST', {
+          name: 'Jo',
+          email: 'jo@example.test',
+          password: 'contrasena-unica-de-jo-2026',
+        })
+      ).status,
+      201,
+    );
+    assert.equal(
+      (
+        await call5(
+          '/api/auth/password',
+          'POST',
+          {
+            current: 'a-strong-test-password-2026',
+            password: 'contrasena-filtrada-2026',
+          },
+          alice.cookie,
+        )
+      ).status,
+      400,
+    );
+  } finally {
+    await new Promise((resolve) => server5.close(resolve));
+  }
+});
+test('anonimização a pedido do cliente preserva o pedido sem dados pessoais', async () => {
+  const kim = await register('Kim'),
+    p = await product(),
+    o = (await order(kim, p)).data.order;
+  await call(
+    `/api/orders/${o.id}/messages`,
+    'POST',
+    { body: 'Mi dirección es secreta.' },
+    kim.cookie,
+  );
+  await call(`/api/orders/${o.id}/checkout`, 'POST', {}, kim.cookie);
+  const session = sessions.get(`qalbi-checkout-${o.id}`);
+  await webhook({
+    id: `evt_${randomUUID()}`,
+    type: 'checkout.session.completed',
+    data: {
+      object: { ...session, payment_status: 'paid', status: 'complete' },
+    },
+  });
+  // Pedido pago em andamento bloqueia a anonimização.
+  await assert.rejects(forgetCustomer(pool, 'kim@example.test'), /andamento/);
+  for (const status of ['in_progress', 'ready', 'shipped', 'completed'])
+    await call(
+      `/api/admin/orders/${o.id}`,
+      'PATCH',
+      { status, due_at: null, tracking: 'ref' },
+      admin.cookie,
+    );
+  await forgetCustomer(pool, 'kim@example.test');
+  await assert.rejects(
+    forgetCustomer(pool, 'kim@example.test'),
+    /não encontrado/,
+  );
+  const user = (
+    await pool.query('SELECT name,email,phone FROM users WHERE id=$1', [kim.id])
+  ).rows[0];
+  assert.equal(user.name, 'Cliente eliminado');
+  assert.doesNotMatch(user.email, /kim/);
+  assert.equal(
+    (await call('/api/auth/me', 'GET', undefined, kim.cookie)).status,
+    401,
+  );
+  const kept = (
+    await call(`/api/orders/${o.id}`, 'GET', undefined, admin.cookie)
+  ).data;
+  assert.equal(kept.order.status, 'completed');
+  assert.equal(kept.order.total_cents, 3000);
+  assert.equal(kept.order.address.line1, '—');
+  assert.equal(kept.order.address.country, 'ES');
+  assert.equal(kept.order.tracking, '');
+  assert.equal(
+    kept.messages[0].body,
+    '[mensaje eliminado a petición del cliente]',
   );
 });

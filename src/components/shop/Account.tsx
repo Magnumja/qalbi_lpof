@@ -3,16 +3,20 @@ import { api, date, money, statusLabel } from './api';
 import type { Order, User } from './types';
 import OrderPanel from './OrderPanel';
 import ContactSettings from './ContactSettings';
+import NotificationSettings from './NotificationSettings';
+import SessionSettings from './SessionSettings';
 import AdminProducts from './AdminProducts';
 import AdminHome from '../home/AdminHome';
 export default function Account({
   user,
   admin = false,
   paymentEnabled = false,
+  notificationsEnabled = false,
 }: {
   user: User;
   admin?: boolean;
   paymentEnabled?: boolean;
+  notificationsEnabled?: boolean;
 }) {
   const [notice, setNotice] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
@@ -33,6 +37,7 @@ export default function Account({
     [tab, setTab] = useState('orders'),
     [error, setError] = useState(''),
     [page, setPage] = useState(0),
+    [filter, setFilter] = useState('all'),
     [stats, setStats] = useState({
       requested: 0,
       awaiting_payment: 0,
@@ -50,7 +55,7 @@ export default function Account({
     setLoading(true);
     setError('');
     api<{ orders: Order[]; stats?: typeof stats }>(
-      admin ? `/admin/orders?page=${page}` : '/orders',
+      admin ? `/admin/orders?page=${page}&filter=${filter}` : '/orders',
     )
       .then((data) => {
         if (active) {
@@ -67,7 +72,18 @@ export default function Account({
     return () => {
       active = false;
     };
-  }, [admin, page, selected, tab, refresh]);
+  }, [admin, page, filter, selected, tab, refresh]);
+  const filterLabel: Record<string, string> = {
+    requested: 'Por presupuestar',
+    awaiting_payment: 'Pendientes de pago',
+    active: 'En preparación',
+    overdue: 'Revisar plazo',
+    unread: 'Conversaciones con mensajes nuevos',
+  };
+  function toggleFilter(next: string) {
+    setPage(0);
+    setFilter(filter === next ? 'all' : next);
+  }
   const unreadTotal = orders.reduce((n, o) => n + (o.unread_count ?? 0), 0);
   if (admin && user.role !== 'admin')
     return (
@@ -106,27 +122,34 @@ export default function Account({
       </header>
       {admin && (
         <>
-          <div className="admin-stats">
-            <div>
-              <strong>{stats.requested}</strong>
-              <span>Por presupuestar</span>
-            </div>
-            <div>
-              <strong>{stats.awaiting_payment}</strong>
-              <span>Pendientes de pago</span>
-            </div>
-            <div>
-              <strong>{stats.active}</strong>
-              <span>En preparación</span>
-            </div>
-            <div>
-              <strong>{stats.overdue}</strong>
-              <span>Revisar plazo</span>
-            </div>
-            <div className="admin-stat-unread">
-              <strong>{stats.unread}</strong>
-              <span>Conversaciones con mensajes nuevos</span>
-            </div>
+          <div
+            className="admin-stats"
+            role="group"
+            aria-label="Filtrar pedidos"
+          >
+            {(
+              [
+                ['requested', stats.requested],
+                ['awaiting_payment', stats.awaiting_payment],
+                ['active', stats.active],
+                ['overdue', stats.overdue],
+                ['unread', stats.unread],
+              ] as const
+            ).map(([key, value]) => (
+              <button
+                key={key}
+                type="button"
+                className={key === 'unread' ? 'admin-stat-unread' : undefined}
+                aria-pressed={filter === key}
+                onClick={() => {
+                  if (tab !== 'orders') switchTab('orders');
+                  toggleFilter(key);
+                }}
+              >
+                <strong>{value}</strong>
+                <span>{filterLabel[key]}</span>
+              </button>
+            ))}
           </div>
           <div className="shop-tabs">
             <button
@@ -175,6 +198,18 @@ export default function Account({
         <AdminProducts onDirty={setEditorDirty} />
       ) : (
         <>
+          {admin && filter !== 'all' && (
+            <p className="admin-filter-note">
+              Mostrando: {filterLabel[filter]}.{' '}
+              <button
+                type="button"
+                className="shop-text-button"
+                onClick={() => toggleFilter(filter)}
+              >
+                Ver todos los pedidos
+              </button>
+            </p>
+          )}
           <div className="order-list">
             {loading ? (
               <p role="status">Cargando pedidos…</p>
@@ -183,7 +218,9 @@ export default function Account({
                 <h2>Aquí empiezan nuevas historias.</h2>
                 <p>
                   {admin
-                    ? 'Los pedidos aparecerán aquí cuando un cliente los cree.'
+                    ? filter === 'all'
+                      ? 'Los pedidos aparecerán aquí cuando un cliente los cree.'
+                      : 'Nada pendiente en este apartado.'
                     : 'Todavía no tienes pedidos.'}
                 </p>
                 <a href="/tienda" className="button">
@@ -309,6 +346,8 @@ export default function Account({
         </details>
       )}
       {!admin && <ContactSettings user={user} />}
+      {!admin && notificationsEnabled && <NotificationSettings user={user} />}
+      {!admin && <SessionSettings />}
     </>
   );
 }

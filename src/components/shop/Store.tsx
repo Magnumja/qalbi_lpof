@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, money } from './api';
 import type { ShopData, User, Order, Product } from './types';
 import AddressFields, { readAddress } from './AddressFields';
@@ -27,6 +27,14 @@ export default function Store({
     ready: cartReady,
   } = useCart(shop.products);
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
+  // /tienda?pieza=ID abre os detalhes de um link compartilhado.
+  useEffect(() => {
+    if (custom) return;
+    const id = new URLSearchParams(window.location.search).get('pieza');
+    const piece = id && shop.products.find((p) => p.id === id);
+    if (piece) setSelected(piece);
+    else if (id) setNotice('Esa pieza ya no está disponible en la tienda.');
+  }, [custom, shop.products]);
   const [notice, setNotice] = useState('');
   const lines = shop.products.filter((p) => cart[p.id] > 0),
     subtotal = lines.reduce((n, p) => n + p.price_cents * cart[p.id], 0);
@@ -185,7 +193,11 @@ export default function Store({
             <ProductDetails
               key={selected.id}
               product={selected}
-              onClose={() => setSelected(null)}
+              onClose={() => {
+                setSelected(null);
+                if (window.location.search.includes('pieza='))
+                  window.history.replaceState(null, '', '/tienda');
+              }}
             />
           )}
         </>

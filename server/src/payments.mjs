@@ -3,7 +3,7 @@ import { transaction } from './db.mjs';
 import { accessibleOrder, addEvent, releaseInventory } from './orders.mjs';
 import { requireValue } from './errors.mjs';
 
-export function createPayments(pool, config, client) {
+export function createPayments(pool, config, client, notifier) {
   const stripe =
     client ??
     (config.STRIPE_SECRET_KEY
@@ -131,6 +131,42 @@ export function createPayments(pool, config, client) {
       );
       if (!inserted.rowCount) return;
       const session = event.data.object;
+      // Reembolsos e disputas são feitos no Stripe; aqui só refletimos o estado.
+      if (
+        ['charge.refunded', 'charge.dispute.created'].includes(event.type) &&
+        session.payment_intent
+      ) {
+        const order = (
+          await db.query(
+            'SELECT * FROM orders WHERE payment_intent=$1 FOR UPDATE',
+            [session.payment_intent],
+          )
+        ).rows[0];
+        if (!order) return;
+        if (event.type === 'charge.dispute.created') {
+          await addEvent(
+            db,
+            order.id,
+            null,
+            'Disputa abierta en Stripe. Revisa el caso en el panel de Stripe.',
+          );
+          return;
+        }
+        if (session.refunded === true && order.payment_status === 'paid')
+          await db.query(
+            "UPDATE orders SET payment_status='refunded',updated_at=now() WHERE id=$1",
+            [order.id],
+          );
+        await addEvent(
+          db,
+          order.id,
+          null,
+          session.refunded === true
+            ? 'Reembolso completo confirmado por Stripe.'
+            : `Reembolso parcial en Stripe: ${((session.amount_refunded ?? 0) / 100).toFixed(2)} ${(session.currency ?? order.currency).toUpperCase()}.`,
+        );
+        return;
+      }
       if (
         !['checkout.session.completed', 'checkout.session.expired'].includes(
           event.type,
@@ -173,6 +209,7 @@ export function createPayments(pool, config, client) {
           null,
           'Pago confirmado. El atelier preparará tu pedido.',
         );
+        await notifier?.enqueue(db, order, 'paid');
       } else if (
         order.status === 'awaiting_payment' &&
         order.payment_status !== 'paid'

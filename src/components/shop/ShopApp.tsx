@@ -18,7 +18,11 @@ export default function ShopApp({
     [accessToken, setAccessToken] = useState('');
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get('acceso');
-    if (token && /^[a-f0-9]{64}$/.test(token)) setAccessToken(token);
+    if (token && /^[a-f0-9]{64}$/.test(token)) {
+      setAccessToken(token);
+      // O token sai do histórico do navegador; fica só na memória da página.
+      window.history.replaceState(null, '', '/cuenta');
+    }
     let active = true;
     Promise.all([
       api<{ user: User }>('/auth/me')
@@ -99,7 +103,11 @@ export default function ShopApp({
           custom={mode === 'custom'}
         />
       ) : user ? (
-        <Account user={user} paymentEnabled={shop?.payment_enabled ?? false} />
+        <Account
+          user={user}
+          paymentEnabled={shop?.payment_enabled ?? false}
+          notificationsEnabled={shop?.notifications_enabled ?? false}
+        />
       ) : accessToken ? (
         <AccessLinkForm token={accessToken} onLogin={setUser} />
       ) : (

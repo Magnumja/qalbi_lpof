@@ -1,7 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import { z } from 'zod';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   authenticate,
   adminOnly,
@@ -11,6 +11,7 @@ import {
   sessionToken,
   tokenHash,
   rateLimit,
+  pwnedPassword,
 } from './auth.mjs';
 import {
   registration,
@@ -32,21 +33,67 @@ import {
   addEvent,
   unreadColumn,
   markRead,
+  publicOrder,
 } from './orders.mjs';
 import { createPayments } from './payments.mjs';
 import { transaction } from './db.mjs';
 import { HttpError, requireValue } from './errors.mjs';
-import { publicHomeRoutes, adminHomeRoutes } from './home.mjs';
+import { publicHomeRoutes, adminHomeRoutes, encodePhoto } from './home.mjs';
+import { createNotifier } from './notify.mjs';
 
-export function createApp(pool, config, stripeClient) {
+export function createApp(pool, config, stripeClient, sender, pwned) {
   const app = express();
-  const payments = createPayments(pool, config, stripeClient);
+  // Sem injeção, testes não consultam a internet; produção usa o serviço real.
+  const isPwned =
+    pwned ?? (config.NODE_ENV === 'test' ? async () => false : pwnedPassword);
+  const rejectPwned = async (password) =>
+    requireValue(
+      !(await isPwned(password)),
+      400,
+      'Esa contraseña apareció en filtraciones conocidas. Elige otra distinta.',
+    );
+  const notifier = createNotifier(pool, config, sender);
+  const payments = createPayments(pool, config, stripeClient, notifier);
+  app.locals.notifier = notifier;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());
-  app.use((_req, res, next) => {
+  // Atrás do proxy Vercel, req.ip seria sempre a função. O proxy envia o IP
+  // do visitante junto com um segredo compartilhado; sem ele, usa-se req.ip.
+  const proxySecret = config.PROXY_SECRET
+    ? Buffer.from(config.PROXY_SECRET)
+    : null;
+  app.use((req, res, next) => {
+    const given = req.headers['x-qalbi-proxy'],
+      forwarded = req.headers['x-qalbi-client-ip'];
+    req.clientIp = req.ip;
+    if (
+      proxySecret &&
+      typeof given === 'string' &&
+      typeof forwarded === 'string' &&
+      Buffer.byteLength(given) === proxySecret.length &&
+      timingSafeEqual(Buffer.from(given), proxySecret) &&
+      /^[0-9a-fA-F.:]{3,45}$/.test(forwarded)
+    )
+      req.clientIp = forwarded;
     res.set('Cache-Control', 'no-store');
     res.set('X-Request-Id', randomUUID());
+    // Uma linha JSON por requisição, sem query, corpo, cookies ou IDs de pedido.
+    if (req.path !== '/health') {
+      const started = process.hrtime.bigint();
+      res.on('finish', () =>
+        console.log(
+          JSON.stringify({
+            event: 'request',
+            request_id: res.get('X-Request-Id'),
+            method: req.method,
+            path: req.path.replace(/[a-f0-9-]{36}/g, ':id'),
+            status: res.statusCode,
+            duration_ms: Number(process.hrtime.bigint() - started) / 1e6,
+          }),
+        ),
+      );
+    }
     next();
   });
   app.get('/health', async (_req, res) => {
@@ -78,6 +125,7 @@ export function createApp(pool, config, stripeClient) {
     },
   );
   app.use('/api/admin/media', express.json({ limit: '1mb' }));
+  app.use('/api/orders/:id/photos', express.json({ limit: '1mb' }));
   app.use('/api/admin/home', express.json({ limit: '192kb' }));
   app.use(express.json({ limit: '32kb' }));
   app.use('/api', (req, _res, next) => {
@@ -102,12 +150,14 @@ export function createApp(pool, config, stripeClient) {
       shipping_cents: config.SHIPPING_CENTS,
       countries: config.countries,
       payment_enabled: !!payments.stripe,
+      notifications_enabled: notifier.enabled,
     });
   });
   app.post('/api/auth/register', async (req, res) => {
     const input = registration.parse(req.body);
-    await rateLimit(pool, `register:${req.ip}`, 15);
+    await rateLimit(pool, `register:${req.clientIp}`, 15);
     await rateLimit(pool, `register-email:${input.email}`, 5);
+    await rejectPwned(input.password);
     const password = await hashPassword(input.password);
     let user;
     try {
@@ -121,11 +171,11 @@ export function createApp(pool, config, stripeClient) {
       if (error.code === '23505')
         throw new HttpError(
           409,
-          'No se pudo crear la cuenta. Si ya tienes una, inicia sesión.',
+          'No pudimos crear la cuenta con esos datos. Si ya tienes cuenta, inicia sesión o pide un enlace de acceso al atelier.',
         );
       throw error;
     }
-    await startSession(pool, res, user.id, config);
+    await startSession(pool, res, user.id, config, req);
     res.status(201).json({ user });
   });
   // Hash falso iguala o custo do login mesmo quando a conta não existe.
@@ -136,7 +186,7 @@ export function createApp(pool, config, stripeClient) {
         ? credentials.parse(req.body)
         : loginSchema.parse(req.body);
     const identifier = role === 'admin' ? input.email : input.identifier;
-    await rateLimit(pool, `login:${req.ip}`, 100);
+    await rateLimit(pool, `login:${req.clientIp}`, 100);
     await rateLimit(pool, `login-identifier:${identifier}`, 15);
     const user = (
       await pool.query(
@@ -155,7 +205,9 @@ export function createApp(pool, config, stripeClient) {
       await pool.query('DELETE FROM sessions WHERE token_hash=$1', [
         tokenHash(previous),
       ]);
-    await startSession(pool, res, user.id, config);
+    await startSession(pool, res, user.id, config, req);
+    if (role === 'customer')
+      await app.locals.notifier.enqueueForUser(pool, user.id, 'login');
     res.json({
       user: {
         id: user.id,
@@ -171,7 +223,8 @@ export function createApp(pool, config, stripeClient) {
   // Link único enviado pelo atelier: define nova senha e entra sem a antiga.
   app.post('/api/auth/access-link', async (req, res) => {
     const input = accessLinkSchema.parse(req.body);
-    await rateLimit(pool, `access-link:${req.ip}`, 20);
+    await rateLimit(pool, `access-link:${req.clientIp}`, 20);
+    await rejectPwned(input.password);
     const hash = await hashPassword(input.password);
     const user = await transaction(pool, async (db) => {
       const link = (
@@ -206,7 +259,7 @@ export function createApp(pool, config, stripeClient) {
       await pool.query('DELETE FROM sessions WHERE token_hash=$1', [
         tokenHash(previous),
       ]);
-    await startSession(pool, res, user.id, config);
+    await startSession(pool, res, user.id, config, req);
     res.json({ user });
   });
   app.use('/api', authenticate(pool));
@@ -244,6 +297,7 @@ export function createApp(pool, config, stripeClient) {
       401,
       'Contraseña actual incorrecta.',
     );
+    await rejectPwned(input.password);
     const hash = await hashPassword(input.password);
     await transaction(pool, async (db) => {
       await db.query('UPDATE users SET password_hash=$2 WHERE id=$1', [
@@ -252,8 +306,24 @@ export function createApp(pool, config, stripeClient) {
       ]);
       await db.query('DELETE FROM sessions WHERE user_id=$1', [req.user.id]);
     });
-    await startSession(pool, res, req.user.id, config);
+    await startSession(pool, res, req.user.id, config, req);
     res.json({ ok: true });
+  });
+  // Sessões do usuário: ver e encerrar as demais sem trocar a senha.
+  app.get('/api/auth/sessions', async (req, res) => {
+    const current = tokenHash(sessionToken(req));
+    const { rows } = await pool.query(
+      'SELECT label,created_at,last_seen_at,token_hash=$2 AS current FROM sessions WHERE user_id=$1 AND expires_at>now() ORDER BY last_seen_at DESC',
+      [req.user.id, current],
+    );
+    res.json({ sessions: rows });
+  });
+  app.post('/api/auth/sessions/close-others', async (req, res) => {
+    const { rowCount } = await pool.query(
+      'DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2',
+      [req.user.id, tokenHash(sessionToken(req))],
+    );
+    res.json({ closed: rowCount });
   });
   app.put('/api/auth/contact', async (req, res) => {
     requireValue(
@@ -290,34 +360,46 @@ export function createApp(pool, config, stripeClient) {
     }
     res.json({ phone: input.phone });
   });
+  app.put('/api/auth/notifications', async (req, res) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+    await pool.query('UPDATE users SET email_notifications=$2 WHERE id=$1', [
+      req.user.id,
+      enabled,
+    ]);
+    res.json({ enabled });
+  });
   app.get('/api/orders', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT o.*,u.name AS customer_name,${unreadColumn('$1')} FROM orders o JOIN users u ON o.user_id=u.id WHERE o.user_id=$1 ORDER BY o.created_at DESC LIMIT 100`,
       [req.user.id],
     );
-    res.json({ orders: rows });
+    res.json({ orders: rows.map(publicOrder) });
   });
   app.post('/api/orders', async (req, res) => {
     await rateLimit(pool, `order:${req.user.id}`, 20, 3600);
     res.status(201).json({
-      order: await createOrder(
-        pool,
-        req.user,
-        orderSchema.parse(req.body),
-        'shop',
-        config,
+      order: publicOrder(
+        await createOrder(
+          pool,
+          req.user,
+          orderSchema.parse(req.body),
+          'shop',
+          config,
+        ),
       ),
     });
   });
   app.post('/api/orders/custom', async (req, res) => {
     await rateLimit(pool, `order:${req.user.id}`, 20, 3600);
     res.status(201).json({
-      order: await createOrder(
-        pool,
-        req.user,
-        customSchema.parse(req.body),
-        'custom',
-        config,
+      order: publicOrder(
+        await createOrder(
+          pool,
+          req.user,
+          customSchema.parse(req.body),
+          'custom',
+          config,
+        ),
       ),
     });
   });
@@ -329,7 +411,7 @@ export function createApp(pool, config, stripeClient) {
         id,
       ]),
       pool.query(
-        `SELECT * FROM (SELECT m.id,m.body,m.created_at,u.name AS sender_name,u.role AS sender_role FROM messages m JOIN users u ON u.id=m.sender_id WHERE order_id=$1 ORDER BY m.created_at DESC LIMIT 200) recent ORDER BY created_at`,
+        `SELECT * FROM (SELECT m.id,m.body,m.created_at,u.name AS sender_name,u.role AS sender_role,CASE WHEN m.media_id IS NULL THEN NULL ELSE '/api/media/'||m.media_id END AS media_url FROM messages m JOIN users u ON u.id=m.sender_id WHERE order_id=$1 ORDER BY m.created_at DESC LIMIT 200) recent ORDER BY created_at`,
         [id],
       ),
       pool.query(
@@ -339,22 +421,46 @@ export function createApp(pool, config, stripeClient) {
     ]);
     await markRead(pool, id, req.user.id);
     res.json({
-      order,
+      order: req.user.role === 'admin' ? order : publicOrder(order),
       items: items.rows,
       messages: messages.rows,
       events: events.rows,
     });
   });
+  // Foto para a conversa: guardada ligada ao pedido; a mensagem referencia o id.
+  app.post('/api/orders/:id/photos', async (req, res) => {
+    const id = uuid.parse(req.params.id);
+    await accessibleOrder(pool, id, req.user);
+    await rateLimit(pool, `photo:${req.user.id}`, 10, 3600);
+    const bytes = await encodePhoto(req.body);
+    const { rows } = await pool.query(
+      'INSERT INTO media(data,owner_id,order_id) VALUES($1,$2,$3) RETURNING id',
+      [bytes, req.user.id, id],
+    );
+    res
+      .status(201)
+      .json({ media_id: rows[0].id, url: `/api/media/${rows[0].id}` });
+  });
   app.post('/api/orders/:id/messages', async (req, res) => {
     const id = uuid.parse(req.params.id),
-      { body } = messageSchema.parse(req.body);
-    await accessibleOrder(pool, id, req.user);
+      { body, media_id } = messageSchema.parse(req.body);
+    const order = await accessibleOrder(pool, id, req.user);
     await rateLimit(pool, `message:${req.user.id}`, 30, 60);
+    if (media_id) {
+      const owned = await pool.query(
+        'SELECT 1 FROM media WHERE id=$1 AND order_id=$2 AND owner_id=$3',
+        [media_id, id, req.user.id],
+      );
+      requireValue(owned.rowCount, 400, 'La foto no pertenece a este pedido.');
+    }
     await pool.query(
-      'INSERT INTO messages(order_id,sender_id,body) VALUES($1,$2,$3)',
-      [id, req.user.id, body],
+      'INSERT INTO messages(order_id,sender_id,body,media_id) VALUES($1,$2,$3,$4)',
+      [id, req.user.id, body, media_id ?? null],
     );
     await markRead(pool, id, req.user.id);
+    await notifier.enqueue(pool, order, 'message', {
+      toAdmins: req.user.role !== 'admin',
+    });
     res.status(201).json({ ok: true });
   });
   app.post('/api/orders/:id/checkout', async (req, res) => {
@@ -396,7 +502,7 @@ export function createApp(pool, config, stripeClient) {
         [order.user_id],
       );
       const { rows } = await db.query(
-        "INSERT INTO access_links(token_hash,user_id,created_by,expires_at) VALUES($1,$2,$3,now()+interval '24 hours') RETURNING expires_at",
+        "INSERT INTO access_links(token_hash,user_id,created_by,expires_at) VALUES($1,$2,$3,now()+interval '2 hours') RETURNING expires_at",
         [tokenHash(token), order.user_id, req.user.id],
       );
       await addEvent(
@@ -412,6 +518,15 @@ export function createApp(pool, config, stripeClient) {
       expires_at: expires,
     });
   });
+  // Filtros fixos; o padrão ordena primeiro o que precisa do atelier.
+  const orderFilters = {
+    all: 'true',
+    requested: "status='requested'",
+    awaiting_payment: "status='awaiting_payment'",
+    active: "status IN ('confirmed','in_progress','ready')",
+    overdue: 'overdue',
+    unread: 'unread_count>0',
+  };
   app.get('/api/admin/orders', async (req, res) => {
     const page = z.coerce
       .number()
@@ -419,8 +534,13 @@ export function createApp(pool, config, stripeClient) {
       .min(0)
       .max(10000)
       .parse(req.query.page ?? 0);
+    const filter = z
+      .enum(Object.keys(orderFilters))
+      .parse(req.query.filter ?? 'all');
     const { rows } = await pool.query(
-      `SELECT o.*,u.name AS customer_name,${unreadColumn('$2')} FROM orders o JOIN users u ON o.user_id=u.id ORDER BY o.created_at DESC LIMIT 50 OFFSET $1`,
+      `SELECT * FROM (SELECT o.*,u.name AS customer_name,${unreadColumn('$2')},(o.due_at<current_date AND o.status NOT IN ('completed','cancelled','shipped')) AS overdue FROM orders o JOIN users u ON o.user_id=u.id) t
+      WHERE ${orderFilters[filter]}
+      ORDER BY (status='requested') DESC,(unread_count>0) DESC,overdue DESC,created_at DESC LIMIT 50 OFFSET $1`,
       [page * 50, req.user.id],
     );
     const stats = (
@@ -519,6 +639,7 @@ export function createApp(pool, config, stripeClient) {
         req.user.id,
         'Presupuesto disponible. Incluye el envío.',
       );
+      await notifier.enqueue(db, order, 'quote');
     });
     res.json({ ok: true });
   });
@@ -555,6 +676,8 @@ export function createApp(pool, config, stripeClient) {
         req.user.id,
         `Estado: ${input.status}. Plazo: ${input.due_at ?? 'por confirmar'}.`,
       );
+      if (input.status !== order.status)
+        await notifier.enqueue(db, order, 'status');
     });
     res.json({ ok: true });
   });
@@ -570,8 +693,16 @@ export function createApp(pool, config, stripeClient) {
           message: i.message,
         })),
       });
-    if (error.status && error.status < 500)
+    if (error instanceof HttpError)
       return res.status(error.status).json({ error: error.message });
+    // Erros do parser de corpo ou do framework: status mantido, texto neutro.
+    if (error.status && error.status < 500)
+      return res.status(error.status).json({
+        error:
+          error.status === 413
+            ? 'El contenido enviado es demasiado grande.'
+            : 'No se pudo leer la solicitud. Actualiza la página e inténtalo de nuevo.',
+      });
     // Nunca registrar corpo, endereço, cookies, senha ou resposta Stripe.
     console.error(
       JSON.stringify({

@@ -12,6 +12,9 @@ export function readConfig(env = process.env) {
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     SHIPPING_CENTS: z.coerce.number().int().min(0).max(100000).default(0),
     SHIPPING_COUNTRIES: z.string().default('ES'),
+    PROXY_SECRET: z.string().min(16).optional(),
+    RESEND_API_KEY: z.string().optional(),
+    NOTIFY_FROM: z.string().optional(),
   });
   const result = schema.safeParse(env);
   if (!result.success)
@@ -19,12 +22,18 @@ export function readConfig(env = process.env) {
       'Configure DATABASE_URL e FRONTEND_URL no ambiente do backend.',
     );
   const config = result.data;
+  if (config.NODE_ENV === 'production' && !config.PROXY_SECRET)
+    throw new Error(
+      'Defina PROXY_SECRET (mínimo 16 caracteres) igual na Vercel e no Render.',
+    );
   if (config.NODE_ENV === 'production' && env.SHIPPING_CENTS === undefined)
     throw new Error(
       'Defina SHIPPING_CENTS explicitamente; use 0 apenas para envio grátis.',
     );
   if (!!config.STRIPE_SECRET_KEY !== !!config.STRIPE_WEBHOOK_SECRET)
     throw new Error('Configure as duas chaves Stripe: API e webhook.');
+  if (!!config.RESEND_API_KEY !== !!config.NOTIFY_FROM)
+    throw new Error('Configure RESEND_API_KEY e NOTIFY_FROM juntos.');
   config.FRONTEND_URL = new URL(config.FRONTEND_URL).origin;
   if (
     config.NODE_ENV === 'production' &&

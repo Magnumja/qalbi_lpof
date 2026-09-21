@@ -2,6 +2,18 @@ import { createHash } from 'node:crypto';
 import { transaction } from './db.mjs';
 import { requireValue } from './errors.mjs';
 
+// Campos do pedido que o cliente vê. Chaves de idempotência, sessão de
+// pagamento e controle de estoque ficam no servidor.
+export const publicOrder = ({
+  request_hash,
+  request_key,
+  checkout_url,
+  checkout_id,
+  checkout_expires_at,
+  inventory_released,
+  production_days,
+  ...order
+}) => order;
 export async function accessibleOrder(db, id, user, lock = false) {
   const { rows } = await db.query(
     `SELECT o.*,u.name AS customer_name,u.email AS customer_email,u.phone AS customer_phone FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=$1 AND (o.user_id=$2 OR $3)${lock ? ' FOR UPDATE OF o' : ''}`,

@@ -18,7 +18,7 @@ export default function AccessLinkForm({
       <h1>Elige una nueva contraseña.</h1>
       <p>
         El atelier te envió este enlace para volver a entrar. Solo se usa una
-        vez y caduca en 24 horas.
+        vez y caduca en 2 horas.
       </p>
       <form
         onSubmit={async (e) => {
@@ -34,7 +34,6 @@ export default function AccessLinkForm({
                 password: new FormData(e.currentTarget).get('password'),
               },
             );
-            window.history.replaceState(null, '', '/cuenta');
             onLogin(result.user);
           } catch (err) {
             setError((err as Error).message);

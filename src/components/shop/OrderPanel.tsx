@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { api, date, money, statusLabel } from './api';
+import { api, ApiError, date, money, statusLabel } from './api';
 import type { OrderDetail } from './types';
 import { orderContactUrl, whatsappUrl } from '../../content/site';
 import AccessLinkPanel from './AccessLinkPanel';
+import { preparePhoto } from './photo';
 export default function OrderPanel({
   id,
   admin,
@@ -18,6 +19,10 @@ export default function OrderPanel({
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
+    [photo, setPhoto] = useState<{ media_id: string; url: string } | null>(
+      null,
+    ),
+    [uploading, setUploading] = useState(false),
     [notice, setNotice] = useState('');
   useEffect(() => {
     let active = true;
@@ -25,18 +30,28 @@ export default function OrderPanel({
       if (document.hidden) return;
       try {
         const data = await api<OrderDetail>(`/orders/${id}`);
-        if (active) setDetail(data);
+        if (active) {
+          setDetail(data);
+          setError('');
+        }
       } catch (err) {
-        if (active) setError((err as Error).message);
+        if (!active) return;
+        // Sessão expirada durante a leitura: volta ao acesso em vez de insistir.
+        if (err instanceof ApiError && err.status === 401) {
+          clearInterval(timer);
+          window.location.assign(admin ? '/admin/login' : '/cuenta');
+          return;
+        }
+        setError((err as Error).message);
       }
     };
-    void load();
     const timer = setInterval(() => void load(), 10000);
+    void load();
     return () => {
       active = false;
       clearInterval(timer);
     };
-  }, [id]);
+  }, [id, admin]);
   async function action(path: string, body?: unknown, method = 'POST') {
     setBusy(true);
     setError('');
@@ -111,7 +126,26 @@ export default function OrderPanel({
               )}
             </p>
             {order.tracking && <p>Seguimiento: {order.tracking}</p>}
+            {admin && order.payment_intent && (
+              <p>
+                <a
+                  href={`https://dashboard.stripe.com/payments/${order.payment_intent}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Ver pago en Stripe ↗
+                </a>{' '}
+                <small>Reembolsos y disputas se gestionan allí.</small>
+              </p>
+            )}
           </div>
+          {order.payment_status === 'refunded' && (
+            <p className="order-next-step">
+              {admin
+                ? 'Pago reembolsado en Stripe. Registra en la conversación cómo queda el pedido.'
+                : 'Tu pago ha sido reembolsado. Si tienes dudas, escríbenos en la conversación.'}
+            </p>
+          )}
           {items.map((item) => (
             <p className="order-item" key={item.id}>
               {item.quantity} × {item.title}
@@ -123,100 +157,6 @@ export default function OrderPanel({
               <h2>Tu idea</h2>
               <p>{order.brief}</p>
             </div>
-          )}
-          {admin && (
-            <div className="order-customer">
-              <h2>Cliente</h2>
-              <p>
-                {order.customer_name}
-                <br />
-                <a href={`mailto:${order.customer_email}`}>
-                  {order.customer_email}
-                </a>
-                {order.customer_phone && (
-                  <>
-                    <br />
-                    <a
-                      href={whatsappUrl(
-                        order.customer_phone,
-                        `Hola ${order.customer_name.split(' ')[0]}, te escribo desde Qalbi por tu pedido #${order.number}.`,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      WhatsApp {order.customer_phone} ↗
-                    </a>
-                  </>
-                )}
-              </p>
-              <AccessLinkPanel orderId={id} phone={order.customer_phone} />
-            </div>
-          )}
-          <div className="order-address">
-            <h2>Entrega</h2>
-            <p>
-              {order.address.name}
-              <br />
-              {order.address.line1}
-              <br />
-              {order.address.postal_code} · {order.address.city}
-              <br />
-              {order.address.country}
-            </p>
-          </div>
-          {!admin && order.status === 'requested' && (
-            <p className="order-next-step">
-              Solicitud recibida. El atelier te enviará aquí el presupuesto y el
-              plazo. Todavía no tienes que pagar; puedes concretar los detalles
-              en la conversación.
-            </p>
-          )}
-          {!admin && order.status === 'awaiting_payment' && !paymentEnabled && (
-            <p className="order-next-step">
-              Tu pedido está guardado. El pago online todavía no está
-              disponible; habla con el atelier en la conversación antes de
-              continuar.
-            </p>
-          )}
-          {!admin && paymentEnabled && order.status === 'awaiting_payment' && (
-            <>
-              <button
-                className="button"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError('');
-                  try {
-                    const result = await api<{ url: string }>(
-                      `/orders/${id}/checkout`,
-                      'POST',
-                    );
-                    window.location.assign(result.url);
-                  } catch (err) {
-                    setError((err as Error).message);
-                    setBusy(false);
-                  }
-                }}
-              >
-                {busy ? 'Preparando el pago…' : 'Pagar mi pedido'} ↗
-              </button>
-              <p className="shop-muted">
-                Pago seguro con tarjeta en Stripe. El estado se actualizará
-                después de confirmar el pago.
-              </p>
-            </>
-          )}
-          {['requested', 'awaiting_payment'].includes(order.status) && (
-            <button
-              className="shop-text-button"
-              disabled={busy}
-              onClick={() => {
-                if (window.confirm('¿Cancelar este pedido?'))
-                  void action(`/orders/${id}/cancel`);
-              }}
-            >
-              Cancelar pedido
-            </button>
           )}
           {admin && order.status === 'requested' && (
             <form
@@ -350,6 +290,100 @@ export default function OrderPanel({
                 </small>
               </form>
             )}
+          {admin && (
+            <div className="order-customer">
+              <h2>Cliente</h2>
+              <p>
+                {order.customer_name}
+                <br />
+                <a href={`mailto:${order.customer_email}`}>
+                  {order.customer_email}
+                </a>
+                {order.customer_phone && (
+                  <>
+                    <br />
+                    <a
+                      href={whatsappUrl(
+                        order.customer_phone,
+                        `Hola ${order.customer_name.split(' ')[0]}, te escribo desde Qalbi por tu pedido #${order.number}.`,
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WhatsApp {order.customer_phone} ↗
+                    </a>
+                  </>
+                )}
+              </p>
+              <AccessLinkPanel orderId={id} phone={order.customer_phone} />
+            </div>
+          )}
+          <div className="order-address">
+            <h2>Entrega</h2>
+            <p>
+              {order.address.name}
+              <br />
+              {order.address.line1}
+              <br />
+              {order.address.postal_code} · {order.address.city}
+              <br />
+              {order.address.country}
+            </p>
+          </div>
+          {!admin && order.status === 'requested' && (
+            <p className="order-next-step">
+              Solicitud recibida. El atelier te enviará aquí el presupuesto y el
+              plazo. Todavía no tienes que pagar; puedes concretar los detalles
+              en la conversación.
+            </p>
+          )}
+          {!admin && order.status === 'awaiting_payment' && !paymentEnabled && (
+            <p className="order-next-step">
+              Tu pedido está guardado. El pago online todavía no está
+              disponible; habla con el atelier en la conversación antes de
+              continuar.
+            </p>
+          )}
+          {!admin && paymentEnabled && order.status === 'awaiting_payment' && (
+            <>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    const result = await api<{ url: string }>(
+                      `/orders/${id}/checkout`,
+                      'POST',
+                    );
+                    window.location.assign(result.url);
+                  } catch (err) {
+                    setError((err as Error).message);
+                    setBusy(false);
+                  }
+                }}
+              >
+                {busy ? 'Preparando el pago…' : 'Pagar mi pedido'} ↗
+              </button>
+              <p className="shop-muted">
+                Pago seguro con tarjeta en Stripe. El estado se actualizará
+                después de confirmar el pago.
+              </p>
+            </>
+          )}
+          {['requested', 'awaiting_payment'].includes(order.status) && (
+            <button
+              className="shop-text-button"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm('¿Cancelar este pedido?'))
+                  void action(`/orders/${id}/cancel`);
+              }}
+            >
+              Cancelar pedido
+            </button>
+          )}
           <details className="order-history">
             <summary>Historia del pedido</summary>
             <ol>
@@ -409,7 +443,17 @@ export default function OrderPanel({
                       ? 'Qalbi Atelier'
                       : m.sender_name}
                   </strong>
-                  <p>{m.body}</p>
+                  {m.media_url && (
+                    <a href={m.media_url} target="_blank" rel="noreferrer">
+                      <img
+                        className="chat-photo"
+                        src={m.media_url}
+                        alt={`Foto enviada por ${m.sender_role === 'admin' ? 'Qalbi Atelier' : m.sender_name}`}
+                        loading="lazy"
+                      />
+                    </a>
+                  )}
+                  {m.body && <p>{m.body}</p>}
                   <time dateTime={m.created_at}>
                     {new Date(m.created_at).toLocaleString('es-ES', {
                       dateStyle: 'short',
@@ -423,8 +467,15 @@ export default function OrderPanel({
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              if (await action(`/orders/${id}/messages`, { body: message }))
+              if (
+                await action(`/orders/${id}/messages`, {
+                  body: message,
+                  ...(photo ? { media_id: photo.media_id } : {}),
+                })
+              ) {
                 setMessage('');
+                setPhoto(null);
+              }
             }}
           >
             <label htmlFor="chat-message">Tu mensaje</label>
@@ -433,10 +484,59 @@ export default function OrderPanel({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={3}
-              required
+              required={!photo}
               maxLength={4000}
             />
-            <button className="button" disabled={busy || !message.trim()}>
+            {photo ? (
+              <p className="chat-attachment">
+                <img
+                  src={photo.url}
+                  alt="Foto adjunta"
+                  className="chat-photo"
+                />
+                <button
+                  type="button"
+                  className="shop-text-button"
+                  onClick={() => setPhoto(null)}
+                >
+                  Quitar foto
+                </button>
+              </p>
+            ) : (
+              <label className="chat-attach">
+                {uploading ? 'Subiendo la foto…' : 'Adjuntar una foto'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={uploading || busy}
+                  onChange={async (e) => {
+                    const file = e.currentTarget.files?.[0];
+                    e.currentTarget.value = '';
+                    if (!file) return;
+                    setUploading(true);
+                    setError('');
+                    try {
+                      const data = await preparePhoto(file);
+                      setPhoto(
+                        await api<{ media_id: string; url: string }>(
+                          `/orders/${id}/photos`,
+                          'POST',
+                          { data },
+                        ),
+                      );
+                    } catch (err) {
+                      setError((err as Error).message);
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                />
+              </label>
+            )}
+            <button
+              className="button"
+              disabled={busy || uploading || (!message.trim() && !photo)}
+            >
               Enviar mensaje ↗
             </button>
           </form>
