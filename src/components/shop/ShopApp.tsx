@@ -89,7 +89,7 @@ export default function ShopApp({
         </p>
       ) : error ? (
         <div className="shop-empty">
-          <h1>Volvemos enseguida.</h1>
+          <h1>Vuelvo enseguida.</h1>
           <p role="alert">{error}</p>
           <button className="button" onClick={() => window.location.reload()}>
             Volver a intentar

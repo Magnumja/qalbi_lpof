@@ -7,6 +7,7 @@ import NotificationSettings from './NotificationSettings';
 import SessionSettings from './SessionSettings';
 import AdminProducts from './AdminProducts';
 import AdminHome from '../home/AdminHome';
+import AdminGuide from '../admin/AdminGuide';
 export default function Account({
   user,
   admin = false,
@@ -19,6 +20,9 @@ export default function Account({
   notificationsEnabled?: boolean;
 }) {
   const [notice, setNotice] = useState('');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('priority');
+  const [hasMore, setHasMore] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [editorDirty, setEditorDirty] = useState(false);
@@ -28,9 +32,10 @@ export default function Account({
       editorDirty &&
       !window.confirm('¿Salir sin guardar los cambios de esta sección?')
     )
-      return;
+      return false;
     setEditorDirty(false);
     setTab(next);
+    return true;
   }
   const [orders, setOrders] = useState<Order[]>([]),
     [selected, setSelected] = useState<string | null>(null),
@@ -54,12 +59,15 @@ export default function Account({
     let active = true;
     setLoading(true);
     setError('');
-    api<{ orders: Order[]; stats?: typeof stats }>(
-      admin ? `/admin/orders?page=${page}&filter=${filter}` : '/orders',
+    api<{ orders: Order[]; stats?: typeof stats; has_more?: boolean }>(
+      admin
+        ? `/admin/orders?${new URLSearchParams({ page: String(page), filter, search, sort })}`
+        : '/orders',
     )
       .then((data) => {
         if (active) {
           setOrders(data.orders);
+          setHasMore(data.has_more ?? false);
           if (data.stats) setStats(data.stats);
         }
       })
@@ -72,18 +80,38 @@ export default function Account({
     return () => {
       active = false;
     };
-  }, [admin, page, filter, selected, tab, refresh]);
+  }, [admin, page, filter, search, sort, selected, tab, refresh]);
   const filterLabel: Record<string, string> = {
     requested: 'Por presupuestar',
     awaiting_payment: 'Pendientes de pago',
     active: 'En preparación',
     overdue: 'Revisar plazo',
     unread: 'Conversaciones con mensajes nuevos',
+    completed: 'Enviados y completados',
+    cancelled: 'Cancelados',
   };
   function toggleFilter(next: string) {
     setPage(0);
     setFilter(filter === next ? 'all' : next);
   }
+  const sectionHeading: Record<string, [string, string]> = {
+    orders: [
+      'Pedidos y plazos',
+      'Revisa prioridades, organiza entregas y acompaña cada creación.',
+    ],
+    products: [
+      'Catálogo de piezas',
+      'Fotos, precios y disponibilidad: todo listo para tu próxima venta.',
+    ],
+    home: [
+      'La primera impresión',
+      'Cuida las imágenes y las historias que dan la bienvenida al atelier.',
+    ],
+    guide: [
+      'Tu guía de trabajo',
+      'Instrucciones sencillas para gestionar el atelier con confianza.',
+    ],
+  };
   const unreadTotal = orders.reduce((n, o) => n + (o.unread_count ?? 0), 0);
   if (admin && user.role !== 'admin')
     return (
@@ -112,11 +140,11 @@ export default function Account({
       <header className="shop-heading compact">
         <p className="eyebrow">{admin ? 'Central del atelier' : 'Mi cuenta'}</p>
         <h1>
-          {admin ? 'Todo en su sitio.' : `Hola, ${user.name.split(' ')[0]}.`}
+          {admin ? sectionHeading[tab][0] : `Hola, ${user.name.split(' ')[0]}.`}
         </h1>
         <p>
           {admin
-            ? 'Pedidos, plazos y conversaciones, con tiempo para crear.'
+            ? sectionHeading[tab][1]
             : 'Tus piezas, sus historias y una conversación siempre cerca.'}
         </p>
       </header>
@@ -142,7 +170,7 @@ export default function Account({
                 className={key === 'unread' ? 'admin-stat-unread' : undefined}
                 aria-pressed={filter === key}
                 onClick={() => {
-                  if (tab !== 'orders') switchTab('orders');
+                  if (tab !== 'orders' && !switchTab('orders')) return;
                   toggleFilter(key);
                 }}
               >
@@ -151,7 +179,7 @@ export default function Account({
               </button>
             ))}
           </div>
-          <div className="shop-tabs">
+          <nav className="shop-tabs" aria-label="Secciones del panel">
             <button
               aria-pressed={tab === 'orders'}
               onClick={() => switchTab('orders')}
@@ -170,7 +198,13 @@ export default function Account({
             >
               Página inicial
             </button>
-          </div>
+            <button
+              aria-pressed={tab === 'guide'}
+              onClick={() => switchTab('guide')}
+            >
+              Guía del atelier
+            </button>
+          </nav>
         </>
       )}
       {error && (
@@ -192,12 +226,86 @@ export default function Account({
           {unreadTotal === 1 ? 'mensaje nuevo' : 'mensajes nuevos'}.
         </p>
       )}
-      {tab === 'home' ? (
+      {tab === 'guide' ? (
+        <AdminGuide />
+      ) : tab === 'home' ? (
         <AdminHome onDirty={setEditorDirty} />
       ) : tab === 'products' ? (
         <AdminProducts onDirty={setEditorDirty} />
       ) : (
         <>
+          {admin && (
+            <form
+              className="admin-order-tools"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setPage(0);
+                setSearch(
+                  String(
+                    new FormData(e.currentTarget).get('search') ?? '',
+                  ).trim(),
+                );
+              }}
+            >
+              <label>
+                Buscar pedido o cliente
+                <input
+                  name="search"
+                  type="search"
+                  maxLength={120}
+                  placeholder="Número, nombre o correo electrónico"
+                  defaultValue={search}
+                />
+              </label>
+              <label>
+                Estado
+                <select
+                  value={filter}
+                  onChange={(e) => {
+                    setFilter(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <option value="all">Todos los pedidos</option>
+                  {Object.entries(filterLabel).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Ordenar por
+                <select
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <option value="priority">Necesitan atención</option>
+                  <option value="newest">Más recientes</option>
+                  <option value="deadline">Fecha de entrega</option>
+                </select>
+              </label>
+              <button className="button" type="submit" disabled={loading}>
+                Buscar
+              </button>
+              <button
+                type="button"
+                onClick={() => setRefresh((n) => n + 1)}
+                disabled={loading}
+              >
+                Actualizar
+              </button>
+              {search && (
+                <p role="status">
+                  Resultados para «{search}». Borra el texto y pulsa Buscar para
+                  ver todos.
+                </p>
+              )}
+            </form>
+          )}
           {admin && filter !== 'all' && (
             <p className="admin-filter-note">
               Mostrando: {filterLabel[filter]}.{' '}
@@ -280,12 +388,15 @@ export default function Account({
           </div>
           {admin && (
             <div className="shop-pagination">
-              <button disabled={page === 0} onClick={() => setPage(page - 1)}>
+              <button
+                disabled={loading || page === 0}
+                onClick={() => setPage(page - 1)}
+              >
                 ← Anterior
               </button>
               <span>Página {page + 1}</span>
               <button
-                disabled={orders.length < 50}
+                disabled={loading || !hasMore}
                 onClick={() => setPage(page + 1)}
               >
                 Siguiente →

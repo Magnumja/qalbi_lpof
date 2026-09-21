@@ -166,7 +166,7 @@ export default function AdminHome({
                   {label}
                 </button>
               ))}
-              <h3>Cards destacados</h3>
+              <h3>Creaciones destacadas</h3>
               {cards.map((c, i) => (
                 <button
                   type="button"
@@ -208,7 +208,7 @@ export default function AdminHome({
                   setSelected(id);
                 }}
               >
-                ＋ Añadir card
+                ＋ Añadir creación
               </button>
             </nav>
             <div className="admin-form">
@@ -216,7 +216,7 @@ export default function AdminHome({
                 <>
                   <h3>Editar creación</h3>
                   <label>
-                    Nombre del card
+                    Nombre de la creación
                     <input
                       value={card.title}
                       required
@@ -298,7 +298,7 @@ export default function AdminHome({
                         }
                       }}
                     >
-                      Eliminar card
+                      Eliminar creación
                     </button>
                   </div>
                 </>
@@ -329,7 +329,9 @@ export default function AdminHome({
               {busy ? 'Guardando…' : 'Publicar cambios'}
             </button>
             <button type="button" onClick={() => setPreview(!preview)}>
-              {preview ? 'Cerrar vista previa' : 'Vista previa de los cards'}
+              {preview
+                ? 'Cerrar vista previa'
+                : 'Vista previa de las creaciones'}
             </button>
             <button
               type="button"

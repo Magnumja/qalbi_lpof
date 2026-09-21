@@ -8,11 +8,11 @@ export default function NotificationSettings({ user }: { user: User }) {
     [error, setError] = useState('');
   return (
     <details className="password-settings">
-      <summary>Avisos por email</summary>
+      <summary>Avisos por correo electrónico</summary>
       <p>
-        Te escribimos a {user.email} cuando hay presupuesto, respuesta del
-        atelier o tu pedido avanza. Nunca incluimos el contenido de la
-        conversación en el email.
+        Te escribo a {user.email} cuando recibes un presupuesto o una respuesta
+        del atelier, o cuando tu pedido avanza. Nunca incluyo el contenido de la
+        conversación en el correo.
       </p>
       <label className="shop-checkbox">
         <input
@@ -33,7 +33,7 @@ export default function NotificationSettings({ user }: { user: User }) {
             }
           }}
         />{' '}
-        Recibir avisos por email
+        Recibir avisos por correo electrónico
       </label>
       {error && (
         <p role="alert" className="shop-error">

@@ -29,7 +29,7 @@ export default function ContactSettings({ user }: { user: User }) {
             setPhone(result.phone ?? '');
             form.reset();
             setNotice(
-              'Contacto actualizado. Puedes entrar con tu email o teléfono y contraseña.',
+              'Contacto actualizado. Puedes entrar con tu correo electrónico o teléfono y contraseña.',
             );
           } catch (err) {
             setError((err as Error).message);
@@ -39,11 +39,11 @@ export default function ContactSettings({ user }: { user: User }) {
         }}
       >
         <p>
-          Tu email de acceso: {user.email}. El teléfono es opcional; déjalo
-          vacío para retirarlo.
+          Tu correo electrónico de acceso: {user.email}. El teléfono es
+          opcional; déjalo vacío para retirarlo.
         </p>
         <label>
-          Teléfono con prefijo de país
+          Teléfono con prefijo del país
           <input
             type="tel"
             value={phone}

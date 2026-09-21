@@ -17,8 +17,8 @@ export default function AccessLinkPanel({
     <details className="order-history">
       <summary>El cliente no puede entrar</summary>
       <p>
-        Genera un enlace de un solo uso, válido 2 horas, y envíaselo por el
-        canal donde ya habláis. Con él elegirá una nueva contraseña.
+        Genera un enlace de un solo uso, válido durante 2 horas, y envíaselo por
+        el canal donde ya habláis. Con él elegirá una nueva contraseña.
       </p>
       {link ? (
         <>
@@ -46,7 +46,7 @@ export default function AccessLinkPanel({
                 className="button"
                 href={whatsappUrl(
                   phone,
-                  `Hola, aquí tienes tu enlace para volver a entrar en Qalbi (válido 2 horas): ${link}`,
+                  `Hola, aquí tienes tu enlace para volver a entrar en Qalbi (válido durante 2 horas): ${link}`,
                 )}
                 target="_blank"
                 rel="noreferrer"

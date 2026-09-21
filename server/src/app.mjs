@@ -526,6 +526,8 @@ export function createApp(pool, config, stripeClient, sender, pwned) {
     active: "status IN ('confirmed','in_progress','ready')",
     overdue: 'overdue',
     unread: 'unread_count>0',
+    completed: "status IN ('completed','shipped')",
+    cancelled: "status='cancelled'",
   };
   app.get('/api/admin/orders', async (req, res) => {
     const page = z.coerce
@@ -537,11 +539,24 @@ export function createApp(pool, config, stripeClient, sender, pwned) {
     const filter = z
       .enum(Object.keys(orderFilters))
       .parse(req.query.filter ?? 'all');
+    const search = z
+      .string()
+      .trim()
+      .max(120)
+      .parse(req.query.search ?? '');
+    // Só valores desta lista entram no SQL; termos de busca são parâmetros.
+    const sorts = {
+      priority:
+        "(status='requested') DESC,(unread_count>0) DESC,overdue DESC NULLS LAST,created_at DESC,id DESC",
+      newest: 'created_at DESC,id DESC',
+      deadline: 'due_at ASC NULLS LAST,created_at DESC,id DESC',
+    };
+    const sort = z.enum(Object.keys(sorts)).parse(req.query.sort ?? 'priority');
     const { rows } = await pool.query(
-      `SELECT * FROM (SELECT o.*,u.name AS customer_name,${unreadColumn('$2')},(o.due_at<current_date AND o.status NOT IN ('completed','cancelled','shipped')) AS overdue FROM orders o JOIN users u ON o.user_id=u.id) t
-      WHERE ${orderFilters[filter]}
-      ORDER BY (status='requested') DESC,(unread_count>0) DESC,overdue DESC,created_at DESC LIMIT 50 OFFSET $1`,
-      [page * 50, req.user.id],
+      `SELECT * FROM (SELECT o.*,u.name AS customer_name,u.email AS customer_email,${unreadColumn('$2')},(o.due_at<current_date AND o.status NOT IN ('completed','cancelled','shipped')) AS overdue FROM orders o JOIN users u ON o.user_id=u.id) t
+      WHERE ${orderFilters[filter]} AND ($3='' OR strpos(lower(customer_name),lower($3))>0 OR strpos(lower(customer_email),lower($3))>0 OR number::text=replace($3,'#',''))
+      ORDER BY ${sorts[sort]} LIMIT 51 OFFSET $1`,
+      [page * 50, req.user.id, search],
     );
     const stats = (
       await pool.query(
@@ -549,17 +564,52 @@ export function createApp(pool, config, stripeClient, sender, pwned) {
         [req.user.id],
       )
     ).rows[0];
-    res.json({ orders: rows, stats });
+    res.json({ orders: rows.slice(0, 50), stats, has_more: rows.length > 50 });
   });
-  app.get('/api/admin/products', async (_req, res) =>
+  app.get('/api/admin/products', async (req, res) => {
+    const input = z
+      .object({
+        search: z.string().trim().max(120).default(''),
+        category: z.string().max(60).default(''),
+        visibility: z.enum(['all', 'published', 'draft']).default('all'),
+        availability: z
+          .enum(['all', 'ready', 'made_to_order', 'out'])
+          .default('all'),
+        page: z.coerce.number().int().min(0).max(10000).default(0),
+      })
+      .parse(req.query);
+    const where = `($1='' OR strpos(lower(title || ' ' || category),lower($1))>0)
+      AND ($2='' OR category=$2)
+      AND ($3='all' OR ($3='published' AND active) OR ($3='draft' AND NOT active))
+      AND ($4='all' OR ($4='ready' AND kind='ready' AND stock>0) OR ($4='made_to_order' AND kind='made_to_order') OR ($4='out' AND kind='ready' AND stock=0))`;
+    const values = [
+      input.search,
+      input.category,
+      input.visibility,
+      input.availability,
+    ];
+    const { rows } = await pool.query(
+      `SELECT * FROM products WHERE ${where} ORDER BY created_at DESC,id DESC LIMIT 25 OFFSET $5`,
+      [...values, input.page * 25],
+    );
+    const total = (
+      await pool.query(
+        `SELECT count(*)::int AS total FROM products WHERE ${where}`,
+        values,
+      )
+    ).rows[0].total;
+    const categories = (
+      await pool.query(
+        'SELECT DISTINCT category FROM products ORDER BY category',
+      )
+    ).rows.map((row) => row.category);
     res.json({
-      products: (
-        await pool.query(
-          'SELECT * FROM products ORDER BY created_at DESC LIMIT 500',
-        )
-      ).rows,
-    }),
-  );
+      products: rows,
+      categories,
+      total,
+      has_more: (input.page + 1) * 25 < total,
+    });
+  });
   app.post('/api/admin/products', async (req, res) => {
     const p = productSchema.parse(req.body);
     const row = (
@@ -606,7 +656,7 @@ export function createApp(pool, config, stripeClient, sender, pwned) {
     requireValue(
       row,
       409,
-      'El stock cambió o la pieza no existe. Actualiza la página antes de editar.',
+      'Las existencias han cambiado o la pieza no existe. Actualiza la página antes de editar.',
     );
     res.json({ product: row });
   });

@@ -91,7 +91,7 @@ export default function Store({
         </h1>
         <p>
           {custom
-            ? 'Cuéntanos qué imaginas. Te enviaremos el presupuesto y el plazo aquí, antes de pagar.'
+            ? 'Cuéntame qué imaginas. Te enviaré aquí el presupuesto y el plazo, antes de pagar.'
             : 'Bordado, ganchillo e ilustración para regalar, recordar y acompañarte.'}
         </p>
       </header>
@@ -127,7 +127,7 @@ export default function Store({
               <span aria-hidden="true">✳</span>
               <h2>Algo bonito está en camino.</h2>
               <p>
-                Estamos preparando la selección de la tienda. Mientras tanto,
+                Estoy preparando la selección de la tienda. Mientras tanto,
                 podemos crear algo especial para ti.
               </p>
               <a className="button" href="/encargo">
@@ -163,7 +163,8 @@ export default function Store({
                       <strong>{money(p.price_cents)}</strong>
                     </div>
                     <p className="shop-muted">
-                      Preparación: hasta {p.lead_days} días · {p.category}
+                      Preparación: hasta {p.lead_days}{' '}
+                      {p.lead_days === 1 ? 'día' : 'días'} · {p.category}
                     </p>
                     <button
                       className="shop-add"
@@ -174,7 +175,7 @@ export default function Store({
                       }
                       onClick={() => {
                         change(p.id, (cart[p.id] ?? 0) + 1);
-                        setNotice(`${p.title} añadido a tu selección.`);
+                        setNotice(`Has añadido «${p.title}» a tu selección.`);
                       }}
                     >
                       {p.kind === 'ready' && p.stock === 0
@@ -268,7 +269,7 @@ export default function Store({
                 </p>
                 {!shop.payment_enabled && (
                   <p className="order-next-step">
-                    El pago online aún no está habilitado. Puedes guardar tu
+                    El pago en línea aún no está habilitado. Puedes guardar tu
                     pedido y hablar con el atelier antes de pagar.
                   </p>
                 )}
@@ -294,7 +295,7 @@ export default function Store({
                 <label>
                   {custom
                     ? 'Tu idea, ocasión y fecha deseada'
-                    : '¿Quieres contarnos algo?'}
+                    : '¿Quieres contarme algo?'}
                   <textarea
                     name="brief"
                     rows={5}
@@ -304,7 +305,7 @@ export default function Store({
                   />
                 </label>
                 <p className="shop-muted">
-                  Usaremos estos datos para atender y entregar tu pedido. Puedes
+                  Usaré estos datos para preparar y entregar tu pedido. Puedes
                   hablar con el atelier desde tu cuenta.
                 </p>
                 {error && (

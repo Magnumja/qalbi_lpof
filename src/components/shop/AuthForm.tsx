@@ -25,7 +25,7 @@ export default function AuthForm({
       <p>
         {admin
           ? 'Gestiona tus pedidos, productos y página inicial desde un solo lugar.'
-          : 'Accede con tu email o teléfono y contraseña para seguir tus pedidos y hablar con el atelier.'}
+          : 'Accede con tu correo electrónico o teléfono y contraseña para seguir tus pedidos y hablar con el atelier.'}
       </p>
       <form
         onSubmit={async (e) => {
@@ -76,10 +76,10 @@ export default function AuthForm({
         )}
         <label>
           {admin
-            ? 'Email del administrador'
+            ? 'Correo electrónico del administrador'
             : register
-              ? 'Email'
-              : 'Email o teléfono'}
+              ? 'Correo electrónico'
+              : 'Correo electrónico o teléfono'}
           <input
             key={register ? 'email' : 'identifier'}
             type={register || admin ? 'email' : 'text'}
@@ -110,8 +110,8 @@ export default function AuthForm({
         )}
         {!register && !admin && (
           <p className="shop-muted">
-            Para entrar con teléfono, usa el número registrado con su prefijo de
-            país.
+            Para entrar con tu teléfono, usa el número registrado con el prefijo
+            del país.
           </p>
         )}
         <label>
@@ -164,7 +164,7 @@ export default function AuthForm({
             >
               Escribe al atelier
             </a>{' '}
-            y te enviaremos un enlace para elegir una nueva.
+            y te enviaré un enlace para elegir una nueva.
           </p>
         </>
       )}

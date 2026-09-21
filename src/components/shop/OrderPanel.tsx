@@ -143,7 +143,7 @@ export default function OrderPanel({
             <p className="order-next-step">
               {admin
                 ? 'Pago reembolsado en Stripe. Registra en la conversación cómo queda el pedido.'
-                : 'Tu pago ha sido reembolsado. Si tienes dudas, escríbenos en la conversación.'}
+                : 'Tu pago ha sido reembolsado. Si tienes dudas, escríbeme en la conversación.'}
             </p>
           )}
           {items.map((item) => (
@@ -339,7 +339,7 @@ export default function OrderPanel({
           )}
           {!admin && order.status === 'awaiting_payment' && !paymentEnabled && (
             <p className="order-next-step">
-              Tu pedido está guardado. El pago online todavía no está
+              Tu pedido está guardado. El pago en línea todavía no está
               disponible; habla con el atelier en la conversación antes de
               continuar.
             </p>
@@ -385,7 +385,7 @@ export default function OrderPanel({
             </button>
           )}
           <details className="order-history">
-            <summary>Historia del pedido</summary>
+            <summary>Historial del pedido</summary>
             <ol>
               {events.map((event, i) => (
                 <li key={i}>
@@ -404,8 +404,8 @@ export default function OrderPanel({
               : 'Al otro lado, el atelier.'}
           </h2>
           <p className="shop-muted">
-            Últimos 200 mensajes · se actualiza cada 10 segundos mientras estás
-            aquí.
+            La conversación se actualiza cada 10 segundos y muestra los últimos
+            200 mensajes mientras estás aquí.
             {!admin && (
               <>
                 {' '}
