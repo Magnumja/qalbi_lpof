@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import handler from '../api/[...path].mjs';
+import handler from '../api/proxy.mjs';
 
 test('proxy Vercel preserva bytes da foto e mantém respostas privadas sem cache', async (t) => {
   const before = process.env.BACKEND_URL;
@@ -141,4 +141,53 @@ test('proxy Vercel só encaminha o IP do visitante quando há segredo configurad
   assert.equal(seen[1]['x-qalbi-client-ip'], '203.0.113.7');
   assert.equal(seen[1]['x-qalbi-proxy'], 'segredo-local-de-teste-16');
   assert.equal(res.headers['X-Request-Id'], 'req-1');
+});
+
+test('proxy Vercel reconstrói o caminho reescrito e preserva a query original', async (t) => {
+  const before = process.env.BACKEND_URL;
+  process.env.BACKEND_URL = 'https://backend.example';
+  t.after(() => {
+    process.env.BACKEND_URL = before ?? '';
+  });
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    urls.push(String(url));
+    return new Response('{}', {
+      headers: { 'content-type': 'application/json' },
+    });
+  });
+  const res = {
+    headers: {},
+    setHeader() {},
+    status(n) {
+      this.code = n;
+      return this;
+    },
+    send() {
+      return this;
+    },
+    end() {
+      return this;
+    },
+  };
+  await handler(
+    {
+      url: '/api/proxy?path=admin/orders&page=2&filter=unread',
+      method: 'GET',
+      headers: {},
+    },
+    res,
+  );
+  assert.equal(
+    urls[0],
+    'https://backend.example/api/admin/orders?page=2&filter=unread',
+  );
+  await handler(
+    { url: '/api/proxy?path=auth/me', method: 'GET', headers: {} },
+    res,
+  );
+  assert.equal(urls[1], 'https://backend.example/api/auth/me');
+  await handler({ url: '/api/proxy', method: 'GET', headers: {} }, res);
+  assert.equal(res.code, 404);
+  assert.equal(urls.length, 2);
 });

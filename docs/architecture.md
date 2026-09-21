@@ -35,7 +35,7 @@ O proxy mantém cookies no domínio do site, evitando depender de cookies entre 
 | `db.mjs`, `migrate.mjs` | Pool, transações e aplicação versionada do SQL |
 | `config.mjs`, `index.mjs` | Ambiente, inicialização, manutenção e encerramento |
 | `server/migrations/` | Estrutura versionada do PostgreSQL |
-| `api/[...path].mjs` | Ponte privada entre Vercel e Render |
+| `api/proxy.mjs` | Ponte privada entre Vercel e Render |
 | `render.yaml`, `vercel.json` | Configuração de hospedagem |
 
 ## Decisões

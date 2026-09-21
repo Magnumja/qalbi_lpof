@@ -7,8 +7,19 @@ export default async function handler(req, res) {
     return res
       .status(503)
       .json({ error: 'La tienda está en preparación. Vuelve pronto.' });
+  // A Vercel reescreve /api/* para esta função com o caminho em ?path=;
+  // sem a reescrita (testes locais) o caminho vem em req.url.
   const incoming = new URL(req.url, 'https://qalbi.invalid');
-  if (!incoming.pathname.startsWith('/api/')) return res.status(404).end();
+  const rewritten = incoming.searchParams.get('path');
+  if (rewritten !== null) {
+    incoming.searchParams.delete('path');
+    incoming.pathname = `/api/${rewritten}`;
+  }
+  if (
+    !incoming.pathname.startsWith('/api/') ||
+    incoming.pathname === '/api/proxy'
+  )
+    return res.status(404).end();
   const headers = { accept: 'application/json' };
   for (const name of ['cookie', 'content-type', 'origin', 'x-qalbi-request'])
     if (req.headers[name]) headers[name] = req.headers[name];
