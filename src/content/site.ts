@@ -19,6 +19,6 @@ export function orderContactUrl(number: string) {
 export function contactUrl(piece?: string) {
   const message = piece
     ? `Hola, me interesa «${piece}». Me gustaría saber si se puede personalizar.`
-    : 'Hola, tengo una idea para una pieza especial. ¿La pensamos juntas?';
+    : 'Hola, tengo una idea para una pieza especial. ¿La pensamos juntos?';
   return `https://wa.me/${site.whatsapp}?text=${encodeURIComponent(message)}`;
 }

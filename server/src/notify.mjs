@@ -11,7 +11,7 @@ const bodies = {
   message: 'Hay un mensaje nuevo en la conversación de tu pedido.',
   quote:
     'El atelier ya envió el presupuesto y el plazo. Entra para verlo y, si te encaja, pagar.',
-  paid: 'Recibimos tu pago. El atelier empezará a preparar tu pedido.',
+  paid: 'Tu pago ha llegado. El atelier empezará a preparar tu pedido.',
   status: 'El estado de tu pedido cambió. Entra para ver el detalle.',
   login:
     'Alguien acaba de entrar en tu cuenta. Si fuiste tú, no tienes que hacer nada. Si no, cambia la contraseña desde Mi cuenta o pide un enlace de acceso al atelier.',

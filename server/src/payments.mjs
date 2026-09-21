@@ -61,7 +61,7 @@ export function createPayments(pool, config, client, notifier) {
         new Date(order.checkout_expires_at).getTime() >
           Date.now() - 22 * 3600000,
         409,
-        'Este pago requiere revisión del atelier. Escríbenos en la conversación del pedido.',
+        'Este pago necesita una revisión. Escríbeme en la conversación del pedido.',
       );
       const items = (
         await db.query(

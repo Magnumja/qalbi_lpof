@@ -5,7 +5,10 @@ import Footer from '../components/Footer.astro';
 import ShopApp from '../components/shop/ShopApp';
 ---
 
-<Base title="Tienda — Qalbi Atelier">
+<Base
+  title="Tienda — Qalbi Atelier"
+  description="Bordado, ganchillo e ilustración hechos a mano en Málaga. Piezas listas para enviar y creaciones bajo pedido."
+>
   <Header />
   <ShopApp mode="store" client:load />
   <noscript>

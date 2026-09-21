@@ -56,7 +56,7 @@ export async function createOrder(pool, user, input, kind, config) {
   requireValue(
     config.countries.includes(input.address.country),
     400,
-    'Todavía no enviamos a ese país.',
+    'Todavía no hago envíos a ese país.',
   );
   const fingerprint = createHash('sha256')
     .update(JSON.stringify({ kind, ...input }))

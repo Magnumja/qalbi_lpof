@@ -210,7 +210,7 @@ export default function Store({
               {custom ? 'Un encargo con tu historia' : 'Tu selección'}
             </p>
             <h2>
-              {custom ? 'Lo imaginamos juntas.' : 'Un poquito más cerca.'}
+              {custom ? 'Lo imaginamos juntos.' : 'Un poquito más cerca.'}
             </h2>
             <ol className="shop-steps" aria-label="Cómo funciona">
               <li>{custom ? 'Cuenta tu idea' : 'Elige tus piezas'}</li>

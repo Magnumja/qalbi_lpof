@@ -171,7 +171,7 @@ export function createApp(pool, config, stripeClient, sender, pwned) {
       if (error.code === '23505')
         throw new HttpError(
           409,
-          'No pudimos crear la cuenta con esos datos. Si ya tienes cuenta, inicia sesión o pide un enlace de acceso al atelier.',
+          'No se ha podido crear la cuenta con esos datos. Si ya tienes cuenta, inicia sesión o pide un enlace de acceso al atelier.',
         );
       throw error;
     }

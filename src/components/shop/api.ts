@@ -21,7 +21,7 @@ export async function api<T>(
     });
   } catch {
     throw new ApiError(
-      'No pudimos conectar. Comprueba tu conexión y vuelve a intentarlo. Si estabas creando un pedido, revisa Mis pedidos antes de repetirlo.',
+      'No se ha podido conectar. Comprueba tu conexión y vuelve a intentarlo. Si estabas creando un pedido, revisa Mis pedidos antes de repetirlo.',
       0,
     );
   }
