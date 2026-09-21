@@ -3,7 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/[...path].mjs": {
+    "api/proxy.mjs": {
       "maxDuration": 30
     }
   },
@@ -41,6 +41,12 @@
           "value": "no-store"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/proxy?path=:path*"
     }
   ]
 }
