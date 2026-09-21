@@ -1682,3 +1682,71 @@ test('anonimização a pedido do cliente preserva o pedido sem dados pessoais', 
     '[mensaje eliminado a petición del cliente]',
   );
 });
+
+test('busca administrativa combina cliente, número, ordenação e paginação', async () => {
+  const owner = await register('BuscaExclusiva');
+  const first = (await order(owner, await product())).data.order;
+  const second = (await order(owner, await product())).data.order;
+  const list = (query, cookie = admin.cookie) =>
+    call(`/api/admin/orders?${query}`, 'GET', undefined, cookie);
+  const result = await list('search=buscaexclusiva&sort=newest');
+  assert.equal(result.status, 200);
+  assert.deepEqual(
+    result.data.orders.map((o) => o.id),
+    [second.id, first.id],
+  );
+  assert.equal(result.data.has_more, false);
+  assert.equal(
+    (await list(`search=%23${first.number}`)).data.orders[0].id,
+    first.id,
+  );
+  assert.equal((await list('search=%25')).data.orders.length, 0);
+  assert.equal(
+    (await list('search=buscaexclusiva&page=1')).data.orders.length,
+    0,
+  );
+  assert.equal((await list('sort=invalid')).status, 400);
+  assert.equal((await list('search=' + 'x'.repeat(121))).status, 400);
+  assert.equal((await list('search=busca', owner.cookie)).status, 403);
+  await call(`/api/orders/${first.id}/cancel`, 'POST', {}, owner.cookie);
+  const cancelled = await list('search=buscaexclusiva&filter=cancelled');
+  assert.deepEqual(
+    cancelled.data.orders.map((o) => o.id),
+    [first.id],
+  );
+  await call(`/api/orders/${second.id}/cancel`, 'POST', {}, owner.cookie);
+});
+
+test('catálogo administrativo pagina e combina categoria, visibilidade e estoque', async () => {
+  // Mais de uma página prova que a busca não depende das peças já carregadas.
+  await pool.query(`INSERT INTO products(title,description,category,image_url,price_cents,kind,stock,lead_days,active)
+    SELECT 'Catálogo QA ' || n,'Descrição exclusiva de teste','Coleção QA','/shop/embroidery.jpg',1000,'ready',0,7,false FROM generate_series(1,27) n`);
+  const query =
+    'category=Cole%C3%A7%C3%A3o%20QA&visibility=draft&availability=out';
+  const list = (q) =>
+    call('/api/admin/products?' + q, 'GET', undefined, admin.cookie);
+  const first = (await list(query)).data;
+  const second = (await list(query + '&page=1')).data;
+  assert.equal(first.total, 27);
+  assert.equal(first.products.length, 25);
+  assert.equal(first.has_more, true);
+  assert.equal(second.products.length, 2);
+  assert.equal(second.has_more, false);
+  assert.equal(
+    new Set([...first.products, ...second.products].map((p) => p.id)).size,
+    27,
+  );
+  assert.ok(first.categories.includes('Coleção QA'));
+  assert.equal((await list(query + '&search=QA%2027')).data.total, 1);
+  assert.equal(
+    (await list('category=Cole%C3%A7%C3%A3o%20QA&visibility=published')).data
+      .total,
+    0,
+  );
+  assert.equal((await list('availability=invalid')).status, 400);
+  assert.equal((await list('page=-1')).status, 400);
+  assert.equal(
+    (await call('/api/admin/products', 'GET', undefined, bob.cookie)).status,
+    403,
+  );
+});

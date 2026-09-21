@@ -51,8 +51,8 @@ O cliente vê nos pedidos só campos seus: chaves de idempotência, sessão de p
 - EUR e frete fixo por pedido, países permitidos configuráveis; sem cotação por código postal, imposto automático, cupons ou múltiplas moedas.
 - Carrinho mantido na sessão da aba: atualizar ou navegar no site preserva IDs e quantidades. Fechar a aba encerra essa sessão. Ao carregar o catálogo, produtos indisponíveis são removidos e quantidades respeitam o estoque atual. Após criar o pedido, a seleção é limpa; o pedido permanece no banco. Dados pessoais e preços não são gravados nesse armazenamento.
 - Sem recuperação automática de senha ou verificação de email. Cliente autenticado pode trocar senha. Para recuperação, o atelier confirma a identidade pelo canal habitual e gera no pedido um **link de acesso** único (2 h, invalida o anterior); ao usá-lo o cliente define nova senha e todas as sessões antigas caem. Só funciona para contas de cliente. Não há ferramenta pública para assumir conta.
-- Fotos de produtos e da home usam o mesmo upload (reencodado em WebP, guardado no banco), ou URL HTTPS / arquivo em `public/shop/`. Veja `comoadicionarfotos.md`.
-- Catálogo público até 200 produtos, painel de produtos até 500, conta mostra 100 pedidos recentes e admin pagina de 50 em 50. Histórico mostra 100 eventos recentes.
+- Fotos de produtos e da home só entram por upload no painel (reencodado em WebP, guardado no banco). A API ainda aceita `/shop/arquivo.jpg` ou URL HTTPS para conteúdo existente. Veja `comoadicionarfotos.md`.
+- Catálogo público até 200 produtos, painel de produtos paginado de 25 em 25, conta mostra 100 pedidos recentes e admin pagina de 50 em 50. Histórico mostra 100 eventos recentes.
 - Não inclui reembolso pelo painel, anexos além de uma foto por mensagem, ou relatórios fiscais. Emails são apenas avisos; não há confirmação de pedido por email nem verificação de endereço.
 - Não houve homologação em conta Stripe, Neon, Render ou Vercel. Testes locais usam PostgreSQL real e provedor de pagamento simulado.
 
@@ -87,3 +87,9 @@ Uma sessão por navegador seleciona a conta em uso; entrar com outra conta revog
 
 Validação concluída com 22 testes (7 de conteúdo/proxy e 15 de API), build de seis páginas e tipos sem erros. Testes adicionais cobrem entrada por email/telefone normalizado, telefone duplicado, alteração protegida por senha, recusa de cliente no login administrativo e seed idempotente que não promove cliente nem redefine senhas no startup. A tela administrativa foi inspecionada no navegador em desktop e 390 px, incluindo login e logout.
 A entrada do cliente por telefone também foi exercitada no navegador com conta local de QA. Ao tentar abrir `/admin`, esse cliente foi encaminhado a `/admin/login`, sem acesso aos pedidos administrativos.
+
+## Encontrar trabalho no painel
+
+Em **Pedidos y plazos**, a busca procura nome, email ou número do pedido (com ou sem `#`) em todo o banco, combinada ao filtro de estado. Enviados/concluídos e cancelados têm filtros próprios. A ordenação permite priorizar atenção, pedidos recentes ou data de entrega; datas não definidas ficam por último. A lista carrega 50 pedidos por página e só habilita a próxima quando há mais resultados. Os indicadores continuam mostrando totais globais, não apenas o resultado da busca. Use **Actualizar** para renovar a lista.
+
+Em **Productos**, busque por nome ou categoria em todo o catálogo. Combine categoria, publicados/rascunhos e disponibilidade (pronta entrega, sob encomenda, sem estoque). A lista mostra 25 peças por página e o total filtrado. A edição permanece aberta ao mudar filtros. Categorias existentes são sugeridas no formulário; também é possível digitar uma nova categoria. **Duplicar como borrador** copia os dados salvos para um formulário novo, sem publicar e com estoque zero. A cópia só é criada ao guardar. Para retirar uma peça de venda, desmarque **Publicar en la tienda** e salve; pedidos anteriores permanecem intactos. **Guía del atelier** explica atendimento, orçamento, produção, publicação e acesso de clientes dentro da própria interface.

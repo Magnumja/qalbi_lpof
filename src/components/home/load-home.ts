@@ -6,7 +6,7 @@ export function loadHome() {
     cache: 'no-store',
     signal: AbortSignal.timeout(8000),
   }).then(async (response) => {
-    if (!response.ok) throw new Error('Home indisponível');
+    if (!response.ok) throw new Error('Página inicial no disponible');
     return response.json() as Promise<HomeDocument>;
   }));
 }

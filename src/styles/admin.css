@@ -119,3 +119,335 @@
     flex-wrap: wrap;
   }
 }
+
+.admin-order-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.admin-order-tools label {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.admin-order-tools input,
+.admin-order-tools select {
+  width: 100%;
+}
+.admin-order-tools p {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.admin-guide {
+  max-width: 800px;
+}
+.admin-guide details {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.admin-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.5rem 0;
+}
+.admin-guide p {
+  line-height: 1.7;
+}
+
+/* Sistema visual exclusivo do painel: superfícies, densidade e estados.
+   A loja pública mantém seus próprios estilos. */
+.admin-layout {
+  --admin-surface: #fffefa;
+  --admin-border: #deded3;
+  --admin-muted: #64675a;
+  --admin-soft: #f0f2e9;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+.admin-identity {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.admin-workspace {
+  max-width: 1440px;
+  padding: 1.5rem clamp(1rem, 3vw, 3rem) 4rem;
+}
+.admin-workspace .shop-heading h1,
+.admin-workspace .order-heading h1 {
+  font-size: clamp(2rem, 3vw, 3rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+.admin-workspace .shop-heading > p:last-child {
+  font-size: 0.95rem;
+  color: var(--admin-muted);
+  max-width: 65ch;
+}
+.admin-workspace .shop-heading {
+  padding: 2rem 0 0.75rem;
+}
+.admin-workspace .admin-stats {
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+}
+.admin-workspace .admin-stats > button {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  padding: 1rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.admin-workspace .admin-stats strong {
+  font-family: var(--sans);
+  font-size: 1.8rem;
+  font-weight: 500;
+  line-height: 1.1;
+}
+.admin-workspace .admin-stats span {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.admin-workspace .admin-stats > button[aria-pressed='true'] {
+  background: var(--admin-soft);
+  border-color: var(--moss);
+  box-shadow: inset 0 3px var(--moss);
+}
+.admin-workspace .shop-tabs {
+  gap: 0.5rem;
+  padding: 0.4rem;
+  margin: 1.25rem 0 2rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: var(--admin-surface);
+}
+.admin-workspace .shop-tabs button {
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.admin-workspace label {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.admin-workspace label small {
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--admin-muted);
+}
+.admin-workspace input:not([type='checkbox']),
+.admin-workspace textarea,
+.admin-workspace select {
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  background: var(--admin-surface);
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  min-height: 44px;
+}
+.admin-workspace
+  :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--moss);
+  outline-offset: 3px;
+}
+.admin-workspace button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.admin-workspace .button {
+  border-radius: 6px;
+  min-height: 44px;
+  font-size: 0.85rem;
+  padding: 0.8rem 1.25rem;
+}
+.admin-workspace .admin-form {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+.admin-workspace .admin-form :is(h2, h3),
+.admin-workspace .shop-toolbar h2 {
+  font-family: var(--sans);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+.admin-workspace .admin-product-layout {
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.admin-workspace .admin-product-list {
+  display: grid;
+  gap: 0.5rem;
+}
+.admin-workspace .admin-product-list > button {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+.admin-workspace .admin-product-list > button[aria-pressed='true'] {
+  background: var(--admin-soft);
+  border-color: var(--moss);
+}
+.admin-workspace .admin-product-list img {
+  flex-shrink: 0;
+}
+.admin-workspace .admin-product-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-workspace .admin-product-list small {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+}
+.admin-workspace .order-row {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+}
+.admin-workspace .order-row:hover {
+  background: var(--admin-soft);
+  border-color: var(--moss);
+}
+.admin-workspace .order-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-workspace .order-row small {
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+}
+.admin-workspace .shop-empty {
+  background: var(--admin-surface);
+  border: 1px dashed var(--admin-border);
+  border-radius: 12px;
+  padding: 2.5rem 1.5rem;
+}
+.admin-workspace .shop-pagination {
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+.admin-workspace .home-editor-layout {
+  gap: 1.5rem;
+}
+.admin-workspace .home-editor-list {
+  padding: 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: var(--admin-surface);
+}
+.admin-workspace .home-editor-list h3 {
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-muted);
+  margin: 1rem 0 0.5rem;
+}
+.admin-workspace .home-editor-layout .admin-form {
+  margin-top: 0;
+}
+.admin-workspace .home-publish-bar {
+  padding: 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: var(--admin-soft);
+  align-items: center;
+}
+.admin-workspace .home-photo-preview {
+  border-radius: 8px;
+}
+.admin-workspace .order-chat {
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  border-radius: 12px;
+  padding: 1.5rem;
+  min-width: 0;
+}
+.admin-workspace .order-chat h2 {
+  font-family: var(--sans);
+  font-size: 1.2rem;
+}
+.admin-workspace .admin-guide {
+  max-width: 900px;
+}
+.admin-workspace .admin-guide > h2 {
+  font-family: var(--sans);
+  font-size: 1.25rem;
+}
+.admin-workspace .admin-guide details {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: 0.75rem 0;
+}
+.admin-workspace .admin-guide details[open] {
+  border-left: 3px solid var(--moss);
+}
+.admin-workspace .admin-guide details p {
+  font-size: 0.9rem;
+  color: var(--admin-muted);
+  margin: 0.75rem 0;
+}
+@media (max-width: 1100px) {
+  .admin-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+  .admin-workspace .admin-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .admin-workspace .admin-product-layout,
+  .admin-workspace .home-editor-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 850px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+  .admin-identity {
+    position: static;
+    height: auto;
+  }
+  .admin-workspace .shop-tabs button {
+    flex-basis: calc(50% - 0.5rem);
+  }
+  .admin-workspace .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-workspace .admin-stats > button:last-child {
+    grid-column: 1 / -1;
+  }
+  .admin-workspace .admin-form,
+  .admin-workspace .order-chat {
+    padding: 1rem;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .admin-workspace .order-row,
+  .admin-workspace .shop-tabs button,
+  .admin-workspace .admin-stats > button {
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+}
+
+/* O indicador de mensagens herda cor clara da loja; no painel usa superfície clara. */
+.admin-workspace .admin-stats > button {
+  color: var(--moss);
+}

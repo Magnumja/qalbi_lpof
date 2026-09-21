@@ -16,7 +16,7 @@ export function createPayments(pool, config, client, notifier) {
     requireValue(
       stripe,
       503,
-      'El pago online todavía no está habilitado. Tu pedido queda guardado.',
+      'El pago en línea todavía no está habilitado. Tu pedido queda guardado.',
     );
     await transaction(pool, async (db) => {
       const order = await accessibleOrder(db, id, user, true);
@@ -178,11 +178,11 @@ export function createPayments(pool, config, client, notifier) {
       const order = (
         await db.query('SELECT * FROM orders WHERE id=$1 FOR UPDATE', [id])
       ).rows[0];
-      requireValue(order, 409, 'Pedido do pagamento não encontrado.');
+      requireValue(order, 409, 'No se encontró el pedido asociado al pago.');
       requireValue(
         !order.checkout_id || order.checkout_id === session.id,
         409,
-        'Sessão de pagamento divergente.',
+        'La sesión de pago no coincide con la del pedido.',
       );
       if (event.type === 'checkout.session.completed') {
         requireValue(
@@ -191,13 +191,13 @@ export function createPayments(pool, config, client, notifier) {
             session.currency === order.currency &&
             session.client_reference_id === order.id,
           409,
-          'Pagamento não corresponde ao pedido.',
+          'El pago no corresponde al pedido.',
         );
         if (order.payment_status === 'paid') return;
         requireValue(
           order.status === 'awaiting_payment' && !order.inventory_released,
           409,
-          'Pedido precisa de reconciliação antes de confirmar.',
+          'Es necesario conciliar el pago antes de confirmar el pedido.',
         );
         await db.query(
           "UPDATE orders SET payment_status='paid',status='confirmed',checkout_id=$2,payment_intent=$3,due_at=CASE WHEN kind='shop' THEN current_date+production_days ELSE due_at END,updated_at=now() WHERE id=$1",

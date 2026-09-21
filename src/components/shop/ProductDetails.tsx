@@ -56,7 +56,8 @@ export default function ProductDetails({
       <p>{product.description}</p>
       <p>
         <strong>{money(product.price_cents)}</strong> · Preparación de hasta{' '}
-        {product.lead_days} días después del pago.
+        {product.lead_days} {product.lead_days === 1 ? 'día' : 'días'} después
+        del pago.
       </p>
       <p className="shop-muted">
         El tiempo de transporte se suma a la preparación. Cierra esta ventana

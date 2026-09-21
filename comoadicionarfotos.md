@@ -4,7 +4,7 @@
 
 1. Entre em `/admin` e abra **Página inicial**.
 2. Escolha um card na lista. Altere **nome**, **técnica**, **história e detalhes** e **descrição da foto**.
-3. Em **Subir foto desde tu dispositivo**, escolha uma imagem JPG, PNG ou WebP de até 12 MB. Ela é reduzida automaticamente. Também pode informar uma URL HTTPS ou `/shop/arquivo.jpg`.
+3. Em **Subir foto desde tu dispositivo**, escolha uma imagem JPG, PNG ou WebP de até 12 MB. Ela é reduzida automaticamente. O painel só aceita upload; a API continua aceitando `/shop/arquivo.jpg` ou URL HTTPS para conteúdo já existente.
 4. Use **↑ Subir / ↓ Bajar** para ordenar. Desmarque **Mostrar en la página inicial** para ocultar sem apagar. **Añadir card** cria um novo card inicialmente oculto; **Eliminar card** remove da seleção quando você publicar.
 5. Abra **Vista previa de los cards** para conferir recortes, textos, filtros e detalhes.
 6. Clique em **Publicar cambios**. Abra ou atualize a home para ver o resultado; não precisa compilar ou fazer deploy.
@@ -24,12 +24,7 @@ A home usa o conteúdo do painel quando JavaScript e API estão disponíveis. O 
 
 Entre em `/admin` com sua conta administrativa e abra **Productos**. Preencha título, descrição, categoria, foto, preço em euros, tipo, estoque disponível e prazo em dias corridos. Marque a opção de publicação e salve. O card, o preço e o botão de adicionar são criados automaticamente em `/tienda`.
 
-Para a foto, em **Foto de la pieza** use **Subir foto desde tu dispositivo** (JPG, PNG ou WebP até 12 MB), igual ao editor da home: a imagem é reduzida, convertida para WebP e guardada no banco ao salvar a peça. Alternativas sem upload:
-
-1. Coloque o arquivo em `public/shop/`, por exemplo `bolsa-floral.jpg`, publique o frontend na Vercel e informe `/shop/bolsa-floral.jpg` no campo de endereço.
-2. Ou informe uma URL HTTPS de imagem que você controla.
-
-As imagens de `public/shop/` são servidas como estão; não passam por otimização. Não coloque arquivos na pasta `dist/` ou no disco do Render.
+Para a foto, em **Foto de la pieza** use **Subir foto desde tu dispositivo** (JPG, PNG ou WebP até 12 MB), igual ao editor da home: a imagem é reduzida, convertida para WebP e guardada no banco ao salvar a peça. Sem foto, a peça não é salva. O painel não tem campo de endereço de imagem; os arquivos antigos em `public/shop/` continuam válidos para o conteúdo que já os usa.
 
 Preço é o valor final de uma unidade; o frete configurado na API é somado ao pedido. Estoque significa unidades disponíveis, sem contar as já reservadas. Produtos sob encomenda usam o prazo cadastrado e dispensam estoque físico. Para retirar uma peça de venda, desmarque sua publicação: pedidos antigos continuam preservados.
 

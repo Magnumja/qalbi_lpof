@@ -120,8 +120,20 @@ export default function AdminHome({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          setBusy(true);
           setError('');
+          const missing = [
+            ...Object.values(home.content.photos),
+            ...home.content.cards,
+          ].filter((photo) => !photo.src);
+          if (missing.length) {
+            setError(
+              missing.length === 1
+                ? 'Falta subir una foto antes de publicar.'
+                : `Faltan ${missing.length} fotos antes de publicar.`,
+            );
+            return;
+          }
+          setBusy(true);
           try {
             const saved = await api<HomeDocument>('/admin/home', 'PUT', home);
             setHome(saved);
@@ -154,7 +166,7 @@ export default function AdminHome({
                   {label}
                 </button>
               ))}
-              <h3>Cards destacados</h3>
+              <h3>Creaciones destacadas</h3>
               {cards.map((c, i) => (
                 <button
                   type="button"
@@ -186,7 +198,7 @@ export default function AdminHome({
                           category: 'Bordado',
                           description:
                             'Describe aquí la historia y los detalles de esta creación.',
-                          src: '/shop/embroidery.jpg',
+                          src: '',
                           alt: 'Describe la fotografía de tu creación',
                           visible: false,
                         },
@@ -196,7 +208,7 @@ export default function AdminHome({
                   setSelected(id);
                 }}
               >
-                ＋ Añadir card
+                ＋ Añadir creación
               </button>
             </nav>
             <div className="admin-form">
@@ -204,7 +216,7 @@ export default function AdminHome({
                 <>
                   <h3>Editar creación</h3>
                   <label>
-                    Nombre del card
+                    Nombre de la creación
                     <input
                       value={card.title}
                       required
@@ -286,7 +298,7 @@ export default function AdminHome({
                         }
                       }}
                     >
-                      Eliminar card
+                      Eliminar creación
                     </button>
                   </div>
                 </>
@@ -317,7 +329,9 @@ export default function AdminHome({
               {busy ? 'Guardando…' : 'Publicar cambios'}
             </button>
             <button type="button" onClick={() => setPreview(!preview)}>
-              {preview ? 'Cerrar vista previa' : 'Vista previa de los cards'}
+              {preview
+                ? 'Cerrar vista previa'
+                : 'Vista previa de las creaciones'}
             </button>
             <button
               type="button"
